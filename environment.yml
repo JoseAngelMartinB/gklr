@@ -1,8 +1,8 @@
-name: GKLR
+name: gklr
 channels:
   - defaults
   - conda-forge
-  - pytorch
+  # - pytorch
   # - fastai
 dependencies:
   - python>=3.6
@@ -12,16 +12,16 @@ dependencies:
   - scipy
   - pandas
   - tqdm
-  - click
+  # - click
   - ipython
   # VISUALIZATION
   - matplotlib
-  - seaborn
+  # - seaborn
   # - altair
   # - yellowbrick
   # ML, STATS & DEEP LEARNING
   # - statsmodels
-  # - scikit-learn
+  - scikit-learn
   # - sktime
   # - tslearn
   # - xgboost
@@ -36,7 +36,7 @@ dependencies:
   # - optuna
   # - dask
   - pip:
-     - -e .  # install git checkout of GKLR in editable mode
+     - -e .  # install git checkout of gklr in editable mode
      # add here only pip-packages that are not available in conda/conda-forge! E.g.:
      # - icecream
      # - jax
