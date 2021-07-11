@@ -81,8 +81,8 @@ class KernelModel:
 
         if train:
             self._K = KernelMatrix(X, choice_column, obs_column, attributes, kernel_params, Z)
-            self.n_parameters = self._K.get_num_rows() * self._K.get_num_alternatives() # One alpha vector per alternative
-            self.alpha_shape = (self._K.get_num_rows(), self._K.get_num_alternatives())
+            self.n_parameters = self._K.get_num_cols() * self._K.get_num_alternatives() # One alpha vector per alternative
+            self.alpha_shape = (self._K.get_num_cols(), self._K.get_num_alternatives())
         else:
             self._K_test = KernelMatrix(X, choice_column, obs_column, attributes, kernel_params, Z)
         return success
@@ -220,18 +220,20 @@ class KernelModel:
 
         return None
 
-    def predict_proba(self):
-        if self._K_test is None:
-            print("ERROR. First you must compute the kernel for the test dataset using set_kernel_test().")
-            return None
-
-        # Create the Calcs instance
-        calcs = KernelCalcs(K=self._K)
+    def predict_proba(self, train=False):
+        """Predict class probabilities for the train or test kernel.
+        """
+        if train:
+            # Create the Calcs instance
+            calcs = KernelCalcs(K=self._K)
+        else:
+            if self._K_test is None:
+                print("ERROR. First you must compute the kernel for the test dataset using set_kernel_test().")
+                return None
+            # Create the Calcs instance
+            calcs = KernelCalcs(K=self._K_test)
 
         prob = calcs.calc_probabilities(self.results["alpha"])
-
-
-
         return prob
 
     def predict(self):
@@ -246,6 +248,7 @@ class KernelMatrix():
         self._kernel = None
         self._K = None
         self.alternatives = None
+        self.n_cols = 0
         self.n_rows = 0
         self.choices = None
         self.alt_index = dict()
@@ -254,6 +257,8 @@ class KernelMatrix():
         self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, Z)
 
     def _create_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None):
+        # TODO: Check that attributescontains more than 1 alternative
+        # TODO: Check that none alternative from attributes contains no attributes at all (giving a 0x0 matrix)
         self._kernel_params = kernel_params
         if "kernel" in kernel_params:
             kernel_type = kernel_params["kernel"]
@@ -287,15 +292,26 @@ class KernelMatrix():
             Z_alt = Z[alt_attributes]
 
             # Create the Kernel Matrix for alternative i
-            K_aux = self._kernel(X_alt, Z_alt).astype(DTYPE)
-            if self.n_rows == 0:
-                self.n_rows = K_aux.shape[0]
+            K_aux = self._kernel(Z_alt, X_alt).astype(DTYPE)
             self._K[alt] = K_aux
+
+        # Store the number of columns and rows on the kernel matrix
+        if self.n_rows == 0:
+            self.n_rows = K_aux.shape[0]
+        if self.n_cols == 0:
+            self.n_cols = K_aux.shape[1]
 
         # Store the choices per observation
         self.choices = X[choice_column]
 
+    def get_num_cols(self):
+        """Return the number of columns of the kernel matrix, which corresponds to the number of reference observations.
+        """
+        return self.n_cols
+
     def get_num_rows(self):
+        """Return the number of rows of the kernel matrix, which corresponds to the number of observations.
+        """
         return self.n_rows
 
     def get_alternatives(self):
@@ -341,9 +357,9 @@ class KernelCalcs(Calcs):
         return log_likelihood
 
     def calc_f(self, alpha):
-        f = np.ndarray((alpha.shape[0], 0), dtype=DTYPE)
+        f = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
         for alt in self.K.get_alternatives():
-            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_rows(),
+            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_cols(),
                                                                        1)  # Get only the column for alt
             f_alt = self.K.K(alt).dot(alpha_alt)
             f = np.concatenate((f, f_alt), axis=1)
@@ -359,7 +375,7 @@ class KernelCalcs(Calcs):
     def tikhonov_penalty(self, alpha, pmle_lambda):
         penalty = 0
         for alt in self.K.get_alternatives():
-            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_rows(), 1)  # Get only the column for alt
+            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
             penalty += alpha_alt.T.dot(self.K.K(alt)).dot(alpha_alt).item()
         penalty = pmle_lambda * penalty
         return penalty
@@ -372,7 +388,7 @@ class KernelEstimator(Estimation):
                              "are: {valid_methods}".format(pmle=pmle, valid_methods=VALID_PMLE_METHODS))
 
         super().__init__(calcs, pmle, pmle_lambda, method)
-        self.alpha_shape = (calcs.K.get_num_rows(), calcs.K.get_num_alternatives())
+        self.alpha_shape = (calcs.K.get_num_cols(), calcs.K.get_num_alternatives())
 
     def objective_function(self, params):
         #time_ini = time.time_ns()  # DEBUG
