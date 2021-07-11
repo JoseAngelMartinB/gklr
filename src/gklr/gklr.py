@@ -233,11 +233,21 @@ class KernelModel:
             # Create the Calcs instance
             calcs = KernelCalcs(K=self._K_test)
 
-        prob = calcs.calc_probabilities(self.results["alpha"])
-        return prob
+        proba = calcs.calc_probabilities(self.results["alpha"])
+        return proba
 
-    def predict(self):
-        return None
+    def predict_log_proba(self, train=False):
+        """Predict the natural logarithm of the class probabilities for the train or test kernel.
+        """
+        proba = self.predict_proba(train)
+        return np.log(proba)
+
+    def predict(self, train=False):
+        """Predict class for the train or test kernel.
+        """
+        proba = self.predict_proba(train)
+        encoded_labels = np.argmax(proba, axis=1)
+        return self._K.alternatives.take(encoded_labels)
 
 
 class KernelMatrix():
@@ -248,10 +258,11 @@ class KernelMatrix():
         self._kernel = None
         self._K = None
         self.alternatives = None
+        self.alt_index = dict()
         self.n_cols = 0
         self.n_rows = 0
         self.choices = None
-        self.alt_index = dict()
+        self.choices_indices = None
 
         # Create the kernel matrix K
         self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, Z)
@@ -267,7 +278,8 @@ class KernelMatrix():
             kernel_type = "RBF"
         self._kernel = kernel_type_to_class[kernel_type](**kernel_params)
 
-        self.alternatives = list(attributes.keys())
+        # Store the alternatives (classes) available
+        self.alternatives = np.fromiter(attributes.keys(), dtype=int)
 
         # If no reference dataframe Z is provided, then X will be the reference dataframe
         if Z is None:
@@ -281,7 +293,6 @@ class KernelMatrix():
         for alt in self.alternatives:
             # Add the index of the alternative to `alt_index`
             self.alt_index[alt] = index
-            index += 1
 
             # Obtain the list of attributes to be considered for alternative `alt`
             alt_attributes = attributes[alt]
@@ -293,7 +304,9 @@ class KernelMatrix():
 
             # Create the Kernel Matrix for alternative i
             K_aux = self._kernel(Z_alt, X_alt).astype(DTYPE)
-            self._K[alt] = K_aux
+            self._K[index] = K_aux
+
+            index += 1
 
         # Store the number of columns and rows on the kernel matrix
         if self.n_rows == 0:
@@ -318,26 +331,32 @@ class KernelMatrix():
         return self.alternatives
 
     def get_num_alternatives(self):
-        return len(self.alternatives)
+        return self.alternatives.shape[0]
 
     def get_choices(self):
         return self.choices.to_numpy()
 
     def get_choices_indices(self):
-        choice_indices = []
-        for choice in self.choices.to_list():
-            choice_indices.append(self.alt_index[choice])
-        return choice_indices
+        if self.choices_indices is None:
+            choice_indices = []
+            for choice in self.choices.to_list():
+                choice_indices.append(self.alt_index[choice])
+            self.choices_indices = np.array(choice_indices)
+        return self.choices_indices
 
-    def K(self, alt=None):
-        if alt is None:
-            return self._K
-        else:
-            if alt in self.alternatives:
-                return self._K[alt]
+    def get_K(self, alt=None, index=None):
+        if index is None:
+            if alt is None:
+                return self._K
             else:
-                raise ValueError("ERROR. Alternative `alt` is not valid alternative. There is no kernel matrix asociated "
-                                 "with this alternative.")
+                if alt in self.alt_index.keys():
+                    return self._K[self.alt_index[alt]]
+                else:
+                    raise ValueError(
+                        "ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix "
+                        "asociated with this alternative.".format(alt=alt))
+        else:
+            return self._K[index]
 
 
 class KernelCalcs(Calcs):
@@ -358,10 +377,9 @@ class KernelCalcs(Calcs):
 
     def calc_f(self, alpha):
         f = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
-        for alt in self.K.get_alternatives():
-            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_cols(),
-                                                                       1)  # Get only the column for alt
-            f_alt = self.K.K(alt).dot(alpha_alt)
+        for alt in range(0,self.K.get_num_alternatives()):
+            alpha_alt = alpha[:, alt].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
+            f_alt = self.K.get_K(index=alt).dot(alpha_alt)
             f = np.concatenate((f, f_alt), axis=1)
         return f
 
@@ -374,9 +392,9 @@ class KernelCalcs(Calcs):
 
     def tikhonov_penalty(self, alpha, pmle_lambda):
         penalty = 0
-        for alt in self.K.get_alternatives():
-            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
-            penalty += alpha_alt.T.dot(self.K.K(alt)).dot(alpha_alt).item()
+        for alt in range(0,self.K.get_num_alternatives()):
+            alpha_alt = alpha[:, alt].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
+            penalty += alpha_alt.T.dot(self.K.get_K(index=alt)).dot(alpha_alt).item()
         penalty = pmle_lambda * penalty
         return penalty
 
