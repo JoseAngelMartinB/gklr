@@ -2,26 +2,11 @@ import numpy as np
 from scipy.optimize import minimize
 
 class Estimation():
-    def __init__(self, K, pmle, pmle_lambda, method):
-        self.K = K
+    def __init__(self, calcs, pmle, pmle_lambda, method):
+        self.calcs = calcs
         self.pmle = pmle
         self.pmle_lambda = pmle_lambda
         self.method = method
-
-    def log_likelihood(self):
-        pass
-
-    def calc_f(self):
-        pass
-
-    def calc_Y(self, f):
-        return np.exp(f)
-
-    def calc_G(self):
-        pass
-
-    def calc_P(self, Y, G, G_j):
-        return (Y*G_j)/G
 
     def objective_function(self):
         pass

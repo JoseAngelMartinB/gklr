@@ -7,6 +7,7 @@ import numpy as np
 from sklearn.gaussian_process import kernels
 
 from gklr.estimation import Estimation
+from gklr.calcs import Calcs
 
 
 DTYPE = np.float64
@@ -178,15 +179,18 @@ class KernelModel:
         else:
             pass # TODO: check that there are self.n_parameters and then make a cast to self.alpha_shape
 
+        # Create the Calcs instance
+        calcs = KernelCalcs(K=self._K)
+
         # Create the estimator instance
-        estimator = KernelEstimator(K=self._K, pmle=pmle, pmle_lambda=pmle_lambda, method=method)
+        estimator = KernelEstimator(calcs=calcs, pmle=pmle, pmle_lambda=pmle_lambda, method=method)
 
         # Log-likelihood at zero
         alpha_at_0 = np.zeros(self.alpha_shape, dtype=DTYPE)
-        log_likelihood_at_zero = estimator.log_likelihood(alpha_at_0)
+        log_likelihood_at_zero = calcs.log_likelihood(alpha_at_0)
 
         # Initial log-likelihood
-        initial_log_likelihood = estimator.log_likelihood(init_parms)
+        initial_log_likelihood = calcs.log_likelihood(init_parms)
 
         if verbose == True:
             print("The estimation is going to start...\n"
@@ -199,7 +203,7 @@ class KernelModel:
 
         self.results = estimator.minimize(init_parms.reshape(self.n_parameters))
 
-        final_log_likelihood = estimator.log_likelihood(self.results["alpha"])
+        final_log_likelihood = calcs.log_likelihood(self.results["alpha"])
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 
@@ -221,12 +225,14 @@ class KernelModel:
             print("ERROR. First you must compute the kernel for the test dataset using set_kernel_test().")
             return None
 
-        # Create the estimator instance
-        estimator = KernelEstimator(K=self._K, pmle=pmle, pmle_lambda=pmle_lambda, method=method)
+        # Create the Calcs instance
+        calcs = KernelCalcs(K=self._K)
+
+        prob = calcs.calc_probabilities(self.results["alpha"])
 
 
 
-        return None
+        return prob
 
     def predict(self):
         return None
@@ -318,14 +324,9 @@ class KernelMatrix():
                                  "with this alternative.")
 
 
-class KernelEstimator(Estimation):
-    def __init__(self, K, pmle, pmle_lambda, method):
-        if pmle not in VALID_PMLE_METHODS:
-            raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`. Valid methods "
-                             "are: {valid_methods}".format(pmle=pmle, valid_methods=VALID_PMLE_METHODS))
-
-        super().__init__(K, pmle, pmle_lambda, method)
-        self.alpha_shape = (K.get_num_rows(), K.get_num_alternatives())
+class KernelCalcs(Calcs):
+    def __init__(self, K):
+        super().__init__(K)
 
     def calc_probabilities(self, alpha):
         f = self.calc_f(alpha)
@@ -342,17 +343,36 @@ class KernelEstimator(Estimation):
     def calc_f(self, alpha):
         f = np.ndarray((alpha.shape[0], 0), dtype=DTYPE)
         for alt in self.K.get_alternatives():
-            alpha_alt = alpha[:,self.K.alt_index[alt]].copy().reshape(self.K.get_num_rows(), 1) # Get only the column for alt
+            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_rows(),
+                                                                       1)  # Get only the column for alt
             f_alt = self.K.K(alt).dot(alpha_alt)
             f = np.concatenate((f, f_alt), axis=1)
         return f
 
     def calc_G(self, Y):
-        # Implementation for KLR TODO: Override for others
+        # Implementation for KLR
         G = np.sum(Y, axis=1).reshape((Y.shape[0], 1))
         # Compute G_j, the derivative of G with respecto to the variable Y_j
         G_j = np.ones_like(Y)
         return (G, G_j)
+
+    def tikhonov_penalty(self, alpha, pmle_lambda):
+        penalty = 0
+        for alt in self.K.get_alternatives():
+            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_rows(), 1)  # Get only the column for alt
+            penalty += alpha_alt.T.dot(self.K.K(alt)).dot(alpha_alt).item()
+        penalty = pmle_lambda * penalty
+        return penalty
+
+
+class KernelEstimator(Estimation):
+    def __init__(self, calcs, pmle, pmle_lambda, method):
+        if pmle not in VALID_PMLE_METHODS:
+            raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`. Valid methods "
+                             "are: {valid_methods}".format(pmle=pmle, valid_methods=VALID_PMLE_METHODS))
+
+        super().__init__(calcs, pmle, pmle_lambda, method)
+        self.alpha_shape = (calcs.K.get_num_rows(), calcs.K.get_num_alternatives())
 
     def objective_function(self, params):
         #time_ini = time.time_ns()  # DEBUG
@@ -360,14 +380,14 @@ class KernelEstimator(Estimation):
         alpha = params.reshape(self.alpha_shape)
 
         # Compute the log-likelihood
-        ll = self.log_likelihood(alpha)
+        ll = self.calcs.log_likelihood(alpha)
 
         # Compute the penalty function
         penalty = 0
         if self.pmle is None:
             pass
         elif self.pmle == "Tikhonov":
-            penalty = self.tikhonov_penalty(alpha)
+            penalty = self.calcs.tikhonov_penalty(alpha, self.pmle_lambda)
         else:
             raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`.".format(
                 pmle = self.pmle))
@@ -385,11 +405,3 @@ class KernelEstimator(Estimation):
         results["alpha"] = results["params"].reshape(self.alpha_shape)
         #DEBUG: tracker.print_diff()
         return results
-
-    def tikhonov_penalty(self, alpha):
-        penalty = 0
-        for alt in self.K.get_alternatives():
-            alpha_alt = alpha[:, self.K.alt_index[alt]].copy().reshape(self.K.get_num_rows(), 1)  # Get only the column for alt
-            penalty += alpha_alt.T.dot(self.K.K(alt)).dot(alpha_alt).item()
-        penalty = self.pmle_lambda * penalty
-        return penalty
