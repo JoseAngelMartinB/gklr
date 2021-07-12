@@ -263,6 +263,7 @@ class KernelMatrix():
         self.n_rows = 0
         self.choices = None
         self.choices_indices = None
+        self.choices_matrix = None
 
         # Create the kernel matrix K
         self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, Z)
@@ -315,7 +316,7 @@ class KernelMatrix():
             self.n_cols = K_aux.shape[1]
 
         # Store the choices per observation
-        self.choices = X[choice_column]
+        self.choices = Z[choice_column]
 
     def get_num_cols(self):
         """Return the number of columns of the kernel matrix, which corresponds to the number of reference observations.
@@ -344,6 +345,15 @@ class KernelMatrix():
             self.choices_indices = np.array(choice_indices)
         return self.choices_indices
 
+    def get_choices_matrix(self):
+        """Obtain a sparse matrix with one row per observation and one column per alternative. A cell Z_ij of the matrix
+        takes value 1 if individual i choses alternative j; The cell contains 0 otherwise."""
+        if self.choices_matrix is None:
+            Z = np.zeros((self.get_num_rows(), self.get_num_alternatives()))
+            Z[np.arange(len(Z)), self.get_choices_indices()] = 1
+            self.choices_matrix = Z
+        return self.choices_matrix
+
     def get_K(self, alt=None, index=None):
         if index is None:
             if alt is None:
@@ -370,10 +380,42 @@ class KernelCalcs(Calcs):
         P = self.calc_P(Y, G, G_j)
         return P
 
-    def log_likelihood(self, alpha):
+    def log_likelihood(self, alpha, return_P=False):
+        P = self.calc_probabilities(alpha)
+        log_P = np.log(P)
         log_P = np.log(self.calc_probabilities(alpha))
-        log_likelihood = np.sum(log_P[np.arange(len(log_P)), self.K.get_choices_indices()].copy())
-        return log_likelihood
+        log_likelihood = np.sum(log_P[np.arange(len(log_P)), self.K.get_choices_indices()]) # TODO: .copy)  ??
+        if return_P:
+            return (log_likelihood, P)
+        else:
+            return log_likelihood
+
+    def log_likelihood_and_gradient(self, alpha, pmle=None, pmle_lambda=0):
+        # Log-likelihood
+        (log_likelihood, P) = self.log_likelihood(alpha, return_P=True)
+
+        # Gradient
+        Z = self.K.get_choices_matrix()
+        grad_penalization = 0
+        if pmle is None:
+            pass
+        elif pmle == "Tikhonov":
+            grad_penalization = self.tikhonov_penalty_gradient(alpha, pmle_lambda)
+        else:
+            raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`.".format(
+                pmle = pmle))
+
+        H = grad_penalization + P - Z
+
+        gradient = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
+        for alt in range(0,self.K.get_num_alternatives()):
+            gradient_alt = np.sum((self.K.get_K(index=alt).T * H[:, alt]), axis=1) / H.shape[0]
+            gradient_alt = gradient_alt.reshape((self.K.get_num_rows(),1))
+            gradient = np.concatenate((gradient, gradient_alt), axis=1)
+
+        gradient = gradient.reshape(self.K.get_num_rows() * self.K.get_num_alternatives())
+
+        return (log_likelihood, gradient)
 
     def calc_f(self, alpha):
         f = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
@@ -398,6 +440,9 @@ class KernelCalcs(Calcs):
         penalty = pmle_lambda * penalty
         return penalty
 
+    def tikhonov_penalty_gradient(self, alpha, pmle_lambda):
+        return self.K.get_num_rows() * pmle_lambda * alpha
+
 
 class KernelEstimator(Estimation):
     def __init__(self, calcs, pmle, pmle_lambda, method):
@@ -413,8 +458,8 @@ class KernelEstimator(Estimation):
         # Convert params to alfas and reshape them as a column vector
         alpha = params.reshape(self.alpha_shape)
 
-        # Compute the log-likelihood
-        ll = self.calcs.log_likelihood(alpha)
+        # Compute the log-likelihood and gradient
+        ll, gradient = self.calcs.log_likelihood_and_gradient(alpha, self.pmle, self.pmle_lambda)
 
         # Compute the penalty function
         penalty = 0
@@ -429,7 +474,7 @@ class KernelEstimator(Estimation):
         print("Current objective fucntion: {fun}".format(fun=-ll+penalty), end = "\r") #DEBUG:
         #print(params, end="\r") #DEBUG:
         #print((time.time_ns() - time_ini) / (10 ** 9))  # convert to floating-point seconds) # DEBUG
-        return -ll + penalty
+        return (-ll + penalty, gradient)
 
     def minimize(self, params):
         #DEBUG: tracker = SummaryTracker()
