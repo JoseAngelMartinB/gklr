@@ -264,6 +264,7 @@ class KernelMatrix():
         self._kernel = None
         self._K = None
         self.alternatives = None
+        self.K_per_alternative = dict()
         self.alt_index = dict()
         self.n_cols = 0
         self.n_rows = 0
@@ -304,14 +305,22 @@ class KernelMatrix():
             # Obtain the list of attributes to be considered for alternative `alt`
             alt_attributes = attributes[alt]
 
-            # Obtain a submatrix X_alt and Z_alt from matrix X and Z, respectively,
-            # with only the desired alternative `alt` and the selected attributes
-            X_alt = X[alt_attributes]
-            Z_alt = Z[alt_attributes]
+            # Check if the kernel matrix for that alternative is already stored (same matrix)
+            self.K_per_alternative[index] = index
+            for prev_alt in self.alt_index.keys():
+                if alt_attributes == attributes[prev_alt]:
+                    self.K_per_alternative[index] = self.alt_index[prev_alt]
+                    break
 
-            # Create the Kernel Matrix for alternative i
-            K_aux = self._kernel(Z_alt, X_alt).astype(DTYPE)
-            self._K[index] = K_aux
+            if self.K_per_alternative[index] == index:
+                # Obtain a submatrix X_alt and Z_alt from matrix X and Z, respectively,
+                # with only the desired alternative `alt` and the selected attributes
+                X_alt = X[alt_attributes]
+                Z_alt = Z[alt_attributes]
+
+                # Create the Kernel Matrix for alternative i
+                K_aux = self._kernel(Z_alt, X_alt).astype(DTYPE)
+                self._K[index] = K_aux
 
             index += 1
 
@@ -366,13 +375,13 @@ class KernelMatrix():
                 return self._K
             else:
                 if alt in self.alt_index.keys():
-                    return self._K[self.alt_index[alt]]
+                    return self._K[self.K_per_alternative[self.alt_index[alt]]]
                 else:
                     raise ValueError(
                         "ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix "
                         "asociated with this alternative.".format(alt=alt))
         else:
-            return self._K[index]
+            return self._K[self.K_per_alternative[index]]
 
 
 class KernelCalcs(Calcs):
