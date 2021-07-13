@@ -113,6 +113,7 @@ class KernelModel:
         return None
 
     def set_kernel_train(self, X, choice_column, obs_column, attributes, kernel_params, verbose=1):
+        self.clear_kernel(dataset="both")
         start_time = time.time()
         success = self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, train=True)
         elapsed_time_sec = time.time() - start_time
@@ -141,6 +142,8 @@ class KernelModel:
         if self._K is None:
             print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
             return None
+
+        self.clear_kernel(dataset="test")
 
         # Set default values for the input parameters
         choice_column = self.choice_column if choice_column is None else choice_column
@@ -254,6 +257,18 @@ class KernelModel:
         proba = self.predict_proba(train)
         encoded_labels = np.argmax(proba, axis=1)
         return self._K.alternatives.take(encoded_labels)
+
+    def score(self):
+        """Predict the mean accuracy on the test kernel.
+        """
+        if self._K_test is None:
+            print("ERROR. First you must compute the kernel for the test dataset using set_kernel_test().")
+            return None
+
+        y_true = self._Z[self.choice_column]
+        y_predict = self.predict()
+        score = np.average(y_true == y_predict)
+        return score
 
 
 class KernelMatrix():
