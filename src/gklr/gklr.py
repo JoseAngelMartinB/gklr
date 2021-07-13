@@ -112,7 +112,7 @@ class KernelModel:
             raise ValueError("dataset must be a value in: ['train', 'test', 'both']")
         return None
 
-    def set_kernel_train(self, X, choice_column, obs_column, attributes, kernel_params, verbose=True):
+    def set_kernel_train(self, X, choice_column, obs_column, attributes, kernel_params, verbose=1):
         start_time = time.time()
         success = self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, train=True)
         elapsed_time_sec = time.time() - start_time
@@ -128,7 +128,7 @@ class KernelModel:
             self.attributes = attributes
             self.kernel_params = kernel_params
 
-        if verbose == True:
+        if verbose >= 1:
             elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
             K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K))
             print("The kernel matrix for the train set have been correctly created in {elapsed_time}. "
@@ -137,7 +137,7 @@ class KernelModel:
             sys.stdout.flush()
         return None
 
-    def set_kernel_test(self, Z, choice_column=None, obs_column=None, attributes=None, kernel_params=None, verbose=True):
+    def set_kernel_test(self, Z, choice_column=None, obs_column=None, attributes=None, kernel_params=None, verbose=1):
         if self._K is None:
             print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
             return None
@@ -160,7 +160,7 @@ class KernelModel:
         else:
             self._Z = Z
 
-        if verbose == True:
+        if verbose >= 1:
             elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
             K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K))
             print("The kernel matrix for the test set have been correctly created in {elapsed_time}. "
@@ -169,7 +169,7 @@ class KernelModel:
             sys.stdout.flush()
         return None
 
-    def fit(self, init_parms = None, pmle="Tikhonov", pmle_lambda=0, method="L-BFGS-B", verbose=True):
+    def fit(self, init_parms = None, pmle="Tikhonov", pmle_lambda=0, method="L-BFGS-B", verbose=1):
         if self._K is None:
             print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
             return None
@@ -183,7 +183,7 @@ class KernelModel:
         calcs = KernelCalcs(K=self._K)
 
         # Create the estimator instance
-        estimator = KernelEstimator(calcs=calcs, pmle=pmle, pmle_lambda=pmle_lambda, method=method)
+        estimator = KernelEstimator(calcs=calcs, pmle=pmle, pmle_lambda=pmle_lambda, method=method, verbose=verbose)
 
         # Log-likelihood at zero
         alpha_at_0 = np.zeros(self.alpha_shape, dtype=DTYPE)
@@ -192,7 +192,7 @@ class KernelModel:
         # Initial log-likelihood
         initial_log_likelihood = calcs.log_likelihood(init_parms)
 
-        if verbose == True:
+        if verbose >= 1:
             print("The estimation is going to start...\n"
                   "Log-likelihood at zero: {ll_zero:,.4f}\n"
                   "Initial log-likelihood: {i_ll:,.4f}".format(ll_zero=log_likelihood_at_zero, i_ll=initial_log_likelihood))
@@ -200,23 +200,29 @@ class KernelModel:
 
         # Perform the estimation
         start_time = time.time()
-
         self.results = estimator.minimize(init_parms.reshape(self.n_parameters))
-
-        final_log_likelihood = calcs.log_likelihood(self.results["alpha"])
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 
-        if verbose == True:
+        final_log_likelihood = calcs.log_likelihood(self.results["alpha"])
+        mcfadden_r2 = 1 - final_log_likelihood / log_likelihood_at_zero  # TODO: Implement a method to compute metrics
+
+        # Store post-estimation information
+        self.results["final_log_likelihood"] = final_log_likelihood
+        self.results["elapsed_time"] = elapsed_time_sec
+        self.results["mcfadden_r2"] = mcfadden_r2
+        self.results["pmle"] = pmle
+        self.results["pmle_lamda"] = pmle_lambda
+        self.results["method"] = method
+
+        if verbose >= 1:
             print("-------------------------------------------------------------------------\n"
                   "The kernel model has been estimated. Elapsed time: {elapsed_time}.\n"
-                  "Final log-likelihood value: {final_log_likelihood:,.4f}".format(elapsed_time=elapsed_time_str,
-                                                                              final_log_likelihood=final_log_likelihood))
+                  "Final log-likelihood value: {final_log_likelihood:,.4f}\n"
+                  "McFadden R^2: {r2:.4f}".format(elapsed_time=elapsed_time_str,
+                                                  final_log_likelihood=final_log_likelihood,
+                                                  r2 = mcfadden_r2))
             sys.stdout.flush()
-
-
-        # TODO: Implement a method to compute metrics
-        print("McFadden R^2: {r2:.4f}".format(r2=1-final_log_likelihood/log_likelihood_at_zero))
 
         return None
 
@@ -445,12 +451,12 @@ class KernelCalcs(Calcs):
 
 
 class KernelEstimator(Estimation):
-    def __init__(self, calcs, pmle, pmle_lambda, method):
+    def __init__(self, calcs, pmle, pmle_lambda, method, verbose):
         if pmle not in VALID_PMLE_METHODS:
             raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`. Valid methods "
                              "are: {valid_methods}".format(pmle=pmle, valid_methods=VALID_PMLE_METHODS))
 
-        super().__init__(calcs, pmle, pmle_lambda, method)
+        super().__init__(calcs, pmle, pmle_lambda, method, verbose)
         self.alpha_shape = (calcs.K.get_num_cols(), calcs.K.get_num_alternatives())
 
     def objective_function(self, params):
@@ -471,7 +477,9 @@ class KernelEstimator(Estimation):
             raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`.".format(
                 pmle = self.pmle))
 
-        print("Current objective fucntion: {fun}".format(fun=-ll+penalty), end = "\r") #DEBUG:
+        if self.verbose >= 2:
+            print("Current objective function: {fun:.4f}".format(fun=-ll+penalty), end = "\r")
+            sys.stdout.flush()
         #print(params, end="\r") #DEBUG:
         #print((time.time_ns() - time_ini) / (10 ** 9))  # convert to floating-point seconds) # DEBUG
         return (-ll + penalty, gradient)
@@ -479,7 +487,6 @@ class KernelEstimator(Estimation):
     def minimize(self, params):
         #DEBUG: tracker = SummaryTracker()
         results = super().minimize(params)
-        print("  ") #DEBUG:
         # Convert params to alfas and reshape them as a column vector
         results["alpha"] = results["params"].reshape(self.alpha_shape)
         #DEBUG: tracker.print_diff()

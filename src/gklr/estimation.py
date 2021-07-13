@@ -2,11 +2,12 @@ import numpy as np
 from scipy.optimize import minimize
 
 class Estimation():
-    def __init__(self, calcs, pmle, pmle_lambda, method):
+    def __init__(self, calcs, pmle, pmle_lambda, method, verbose):
         self.calcs = calcs
         self.pmle = pmle
         self.pmle_lambda = pmle_lambda
         self.method = method
+        self.verbose = verbose
 
     def objective_function(self):
         pass
