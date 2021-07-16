@@ -4,7 +4,8 @@ from pympler import asizeof
 from pympler.tracker import SummaryTracker
 import numpy as np
 
-from sklearn.gaussian_process import kernels
+from sklearn.metrics import pairwise
+from sklearn.kernel_approximation import Nystroem
 
 from gklr.estimation import Estimation
 from gklr.calcs import Calcs
@@ -12,19 +13,12 @@ from gklr.calcs import Calcs
 
 DTYPE = np.float64
 VALID_PMLE_METHODS = [None, "Tikhonov"]
+DEFAULT_NYSTROM_COMPRESION = 0.1
 
 # Create a dictionary relating the kernel type parameter to the class from sklearn.gaussian_process.kernels that
 # implements that kernel.
-kernel_type_to_class = {"RBF": kernels.RBF,
-                        "Matern": kernels.Matern,
-                        "RationalQuadratic": kernels.RationalQuadratic,
-                        "PairwiseKernel": kernels.PairwiseKernel,
-                        "Product": kernels.Product,
-                        "ExpSineSquared": kernels.ExpSineSquared,
-                        "DotProduct": kernels.DotProduct,
-                        "CompoundKernel": kernels.CompoundKernel,
-                        "Sum": kernels.Sum,
-                        "Exponentiation": kernels.Exponentiation}
+kernel_type_to_class = {"rbf": pairwise.rbf_kernel,
+                        }
 
 valid_kernel_list = kernel_type_to_class.keys()
 
@@ -115,7 +109,7 @@ class KernelModel:
     def set_kernel_train(self, X, choice_column, obs_column, attributes, kernel_params, verbose=1):
         self.clear_kernel(dataset="both")
         start_time = time.time()
-        success = self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, train=True)
+        success = self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params.copy(), train=True)
         elapsed_time_sec = time.time() - start_time
 
         if success == 0:
@@ -149,7 +143,14 @@ class KernelModel:
         choice_column = self.choice_column if choice_column is None else choice_column
         obs_column = self.obs_column if obs_column is None else obs_column
         attributes = self.attributes if attributes is None else attributes
-        kernel_params = self.kernel_params if kernel_params is None else kernel_params
+        kernel_params = self.kernel_params.copy() if kernel_params is None else kernel_params
+
+        # Nystrom method is not allowed for the test kernel
+        if "nystrom" in kernel_params:
+            kernel_params["nystrom"]
+            del kernel_params["nystrom"]
+        if "compresion" in kernel_params:
+            del kernel_params["compresion"]
 
         start_time = time.time()
         success = self._create_kernel_matrix(self._X, choice_column, obs_column, attributes, kernel_params, Z=Z,
@@ -165,7 +166,7 @@ class KernelModel:
 
         if verbose >= 1:
             elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
-            K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K))
+            K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K_test))
             print("The kernel matrix for the test set have been correctly created in {elapsed_time}. "
                   "Size of the matrix object: {sizeK} {unit}".format(elapsed_time=elapsed_time_str, sizeK=K_size,
                                                                      unit=K_size_u))
@@ -199,6 +200,9 @@ class KernelModel:
             print("The estimation is going to start...\n"
                   "Log-likelihood at zero: {ll_zero:,.4f}\n"
                   "Initial log-likelihood: {i_ll:,.4f}".format(ll_zero=log_likelihood_at_zero, i_ll=initial_log_likelihood))
+            sys.stdout.flush()
+        if verbose >= 2:
+            print("Number of parameters to be estimated: {n_parameters:,d}".format(n_parameters=self.n_parameters))
             sys.stdout.flush()
 
         # Perform the estimation
@@ -278,6 +282,8 @@ class KernelMatrix():
         self._kernel_params = None
         self._kernel = None
         self._K = None
+        self.nystrom = False
+        self.nystrom_compresion = DEFAULT_NYSTROM_COMPRESION
         self.alternatives = None
         self.K_per_alternative = dict()
         self.alt_index = dict()
@@ -293,20 +299,31 @@ class KernelMatrix():
     def _create_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None):
         # TODO: Check that attributescontains more than 1 alternative
         # TODO: Check that none alternative from attributes contains no attributes at all (giving a 0x0 matrix)
-        self._kernel_params = kernel_params
+        self._kernel_params = kernel_params.copy()
         if "kernel" in kernel_params:
             kernel_type = kernel_params["kernel"]
             del kernel_params["kernel"]
         else:
-            kernel_type = "RBF"
-        self._kernel = kernel_type_to_class[kernel_type](**kernel_params)
+            kernel_type = "rbf"
+        if "nystrom" in kernel_params:
+            self.nystrom = kernel_params["nystrom"]
+            del kernel_params["nystrom"]
+        if "compresion" in kernel_params:
+            self.nystrom_compresion = kernel_params["compresion"]
+            del kernel_params["compresion"]
 
-        # Store the alternatives (classes) available
-        self.alternatives = np.fromiter(attributes.keys(), dtype=int)
+        if self.nystrom == True:
+            # TODO: Check that Z is None
+            pass
+        else:
+            self._kernel = kernel_type_to_class[kernel_type]
 
         # If no reference dataframe Z is provided, then X will be the reference dataframe
         if Z is None:
             Z = X
+
+        # Store the alternatives (classes) available
+        self.alternatives = np.fromiter(attributes.keys(), dtype=int)
 
         # Initialize a dict K that contains the kernel matrix per each alternative
         self._K = dict()
@@ -334,7 +351,12 @@ class KernelMatrix():
                 Z_alt = Z[alt_attributes]
 
                 # Create the Kernel Matrix for alternative i
-                K_aux = self._kernel(Z_alt, X_alt).astype(DTYPE)
+                if self.nystrom:
+                    nystrom_components = int(X_alt.shape[0] * self.nystrom_compresion)
+                    nystrom_kernel = Nystroem(kernel=kernel_type, n_components = nystrom_components, **kernel_params)
+                    K_aux = nystrom_kernel.fit_transform(X_alt)
+                else:
+                    K_aux = self._kernel(Z_alt, X_alt, **kernel_params).astype(DTYPE)
                 self._K[index] = K_aux
 
             index += 1
@@ -343,7 +365,11 @@ class KernelMatrix():
         if self.n_rows == 0:
             self.n_rows = K_aux.shape[0]
         if self.n_cols == 0:
-            self.n_cols = K_aux.shape[1]
+            if self.nystrom:
+                # The matrix must be symmetric
+                self.n_cols = self.n_rows
+            else:
+                self.n_cols = K_aux.shape[1]
 
         # Store the choices per observation
         self.choices = Z[choice_column]
@@ -377,7 +403,8 @@ class KernelMatrix():
 
     def get_choices_matrix(self):
         """Obtain a sparse matrix with one row per observation and one column per alternative. A cell Z_ij of the matrix
-        takes value 1 if individual i choses alternative j; The cell contains 0 otherwise."""
+        takes value 1 if individual i choses alternative j; The cell contains 0 otherwise.
+        """
         if self.choices_matrix is None:
             Z = np.zeros((self.get_num_rows(), self.get_num_alternatives()))
             Z[np.arange(len(Z)), self.get_choices_indices()] = 1
@@ -385,6 +412,8 @@ class KernelMatrix():
         return self.choices_matrix
 
     def get_K(self, alt=None, index=None):
+        """Returns the kernel matrix for all the alternatives, for alternative `alt`, or the matrix at index `index`.
+        """
         if index is None:
             if alt is None:
                 return self._K
@@ -398,6 +427,14 @@ class KernelMatrix():
         else:
             return self._K[self.K_per_alternative[index]]
 
+    def dot(self, A, index=0):
+        """Implements the dot product of the kernel matrix and numpy array A.
+        """
+        if self.nystrom:
+            B = self.get_K(index=index).dot(self.get_K(index=index).T.dot(A))
+        else:
+            B = self.get_K(index=index).dot(A)
+        return B
 
 class KernelCalcs(Calcs):
     def __init__(self, K):
@@ -439,8 +476,8 @@ class KernelCalcs(Calcs):
 
         gradient = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
         for alt in range(0,self.K.get_num_alternatives()):
-            gradient_alt = np.sum((self.K.get_K(index=alt).T * H[:, alt]), axis=1) / H.shape[0]
-            gradient_alt = gradient_alt.reshape((self.K.get_num_rows(),1))
+            gradient_alt = self.K.dot(H[:, alt], index=alt)
+            gradient_alt = (gradient_alt / H.shape[0]).reshape((self.K.get_num_rows(),1))
             gradient = np.concatenate((gradient, gradient_alt), axis=1)
 
         gradient = gradient.reshape(self.K.get_num_rows() * self.K.get_num_alternatives())
@@ -451,7 +488,7 @@ class KernelCalcs(Calcs):
         f = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
         for alt in range(0,self.K.get_num_alternatives()):
             alpha_alt = alpha[:, alt].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
-            f_alt = self.K.get_K(index=alt).dot(alpha_alt)
+            f_alt = self.K.dot(alpha_alt, index=alt)
             f = np.concatenate((f, f_alt), axis=1)
         return f
 
@@ -466,7 +503,7 @@ class KernelCalcs(Calcs):
         penalty = 0
         for alt in range(0,self.K.get_num_alternatives()):
             alpha_alt = alpha[:, alt].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
-            penalty += alpha_alt.T.dot(self.K.get_K(index=alt)).dot(alpha_alt).item()
+            penalty += alpha_alt.T.dot(self.K.dot(alpha_alt, index=alt)).item()
         penalty = pmle_lambda * penalty
         return penalty
 
@@ -502,7 +539,7 @@ class KernelEstimator(Estimation):
                 pmle = self.pmle))
 
         if self.verbose >= 2:
-            print("Current objective function: {fun:.4f}".format(fun=-ll+penalty), end = "\r")
+            print("Current objective function: {fun:,.4f}".format(fun=-ll+penalty), end = "\r")
             sys.stdout.flush()
         #print(params, end="\r") #DEBUG:
         #print((time.time_ns() - time_ini) / (10 ** 9))  # convert to floating-point seconds) # DEBUG
