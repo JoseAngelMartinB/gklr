@@ -65,9 +65,6 @@ class KernelModel:
             # TODO: Check parameters
             self._model_params = model_params
 
-        # TODO
-        print(self._model_params)
-
     def _create_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None, train=True):
         success = 1 # TODO: check when success is 0
         # TODO: ensure_columns_are_in_dataframe
