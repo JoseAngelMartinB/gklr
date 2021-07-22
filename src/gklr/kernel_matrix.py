@@ -10,7 +10,7 @@ class KernelMatrix():
         self._kernel = None
         self._K = None
         self.nystrom = False
-        self.nystrom_compresion = DEFAULT_NYSTROM_COMPRESION
+        self.nystrom_compression = DEFAULT_NYSTROM_COMPRESSION
         self.alternatives = None
         self.K_per_alternative = dict()
         self.alt_index = dict()
@@ -35,9 +35,9 @@ class KernelMatrix():
         if "nystrom" in kernel_params:
             self.nystrom = kernel_params["nystrom"]
             del kernel_params["nystrom"]
-        if "compresion" in kernel_params:
-            self.nystrom_compresion = kernel_params["compresion"]
-            del kernel_params["compresion"]
+        if "compression" in kernel_params:
+            self.nystrom_compression = kernel_params["compression"]
+            del kernel_params["compression"]
 
         if self.nystrom == True:
             # TODO: Check that Z is None
@@ -79,7 +79,7 @@ class KernelMatrix():
 
                 # Create the Kernel Matrix for alternative i
                 if self.nystrom:
-                    nystrom_components = int(X_alt.shape[0] * self.nystrom_compresion)
+                    nystrom_components = int(X_alt.shape[0] * self.nystrom_compression)
                     nystrom_kernel = Nystroem(kernel=kernel_type, n_components = nystrom_components, **kernel_params)
                     K_aux = nystrom_kernel.fit_transform(X_alt)
                 else:

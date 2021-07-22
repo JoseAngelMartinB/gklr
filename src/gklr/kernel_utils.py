@@ -4,7 +4,7 @@ from sklearn.metrics import pairwise
 # Define constants
 DTYPE = np.float64
 VALID_PMLE_METHODS = [None, "Tikhonov"]
-DEFAULT_NYSTROM_COMPRESION = 0.1
+DEFAULT_NYSTROM_COMPRESSION = 0.1
 
 # Create a dictionary relating the kernel type parameter to the class from sklearn.gaussian_process.kernels that
 # implements that kernel.
