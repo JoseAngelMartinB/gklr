@@ -112,7 +112,6 @@ class KernelModel:
 
         # Nystrom method is not allowed for the test kernel
         if "nystrom" in kernel_params:
-            kernel_params["nystrom"]
             del kernel_params["nystrom"]
         if "compression" in kernel_params:
             del kernel_params["compression"]
