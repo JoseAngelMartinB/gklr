@@ -43,6 +43,8 @@ class KernelMatrix():
             # TODO: Check that Z is None
             pass
         else:
+            if "n_jobs" in kernel_params:
+                del kernel_params["n_jobs"]
             self._kernel = kernel_type_to_class[kernel_type]
 
         # If no reference dataframe Z is provided, then X will be the reference dataframe
