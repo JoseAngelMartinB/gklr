@@ -115,6 +115,8 @@ class KernelModel:
             del kernel_params["nystrom"]
         if "compression" in kernel_params:
             del kernel_params["compression"]
+        if "nystrom_sampling" in kernel_params:
+            del kernel_params["nystrom_sampling"]
 
         start_time = time.time()
         success = self._create_kernel_matrix(self._X, choice_column, obs_column, attributes, kernel_params, Z=Z,

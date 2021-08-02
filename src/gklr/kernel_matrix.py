@@ -1,4 +1,9 @@
-from sklearn.kernel_approximation import Nystroem
+#from sklearn.kernel_approximation import Nystroem
+from sklearn.utils import check_random_state
+from sklearn.utils.validation import check_array
+from sklearn.metrics.pairwise import pairwise_kernels
+from scipy.linalg import svd
+from sklearn.cluster import KMeans, MiniBatchKMeans
 
 from gklr.kernel_utils import *
 
@@ -10,6 +15,7 @@ class KernelMatrix():
         self._kernel = None
         self._K = None
         self.nystrom = False
+        self.nystrom_sampling = "uniform"
         self.nystrom_compression = DEFAULT_NYSTROM_COMPRESSION
         self.alternatives = None
         self.K_per_alternative = dict()
@@ -35,6 +41,9 @@ class KernelMatrix():
         if "nystrom" in kernel_params:
             self.nystrom = kernel_params["nystrom"]
             del kernel_params["nystrom"]
+            if "nystrom_sampling" in kernel_params:
+                self.nystrom_sampling = kernel_params["nystrom_sampling"]
+                del kernel_params["nystrom_sampling"]
         if "compression" in kernel_params:
             self.nystrom_compression = kernel_params["compression"]
             del kernel_params["compression"]
@@ -82,7 +91,8 @@ class KernelMatrix():
                 # Create the Kernel Matrix for alternative i
                 if self.nystrom:
                     nystrom_components = int(X_alt.shape[0] * self.nystrom_compression)
-                    nystrom_kernel = Nystroem(kernel=kernel_type, n_components = nystrom_components, **kernel_params)
+                    nystrom_kernel = Nystroem(kernel=kernel_type, n_components=nystrom_components,
+                                              sampling=self.nystrom_sampling, **kernel_params)
                     K_aux = nystrom_kernel.fit_transform(X_alt)
                 else:
                     K_aux = self._kernel(Z_alt, X_alt, **kernel_params).astype(DTYPE)
@@ -164,3 +174,97 @@ class KernelMatrix():
         else:
             B = self.get_K(index=index).dot(A)
         return B
+
+
+class Nystroem():
+    def __init__(self, kernel="rbf", *, gamma=None, coef0=None, degree=None, kernel_params=None, n_components=100,
+                 sampling="uniform", random_state=None, n_jobs=None):
+        self.kernel = kernel
+        self.gamma = gamma
+        self.coef0 = coef0
+        self.degree = degree
+        self.kernel_params = kernel_params
+        self.n_components = n_components
+        self.random_state = random_state
+        self.n_jobs = n_jobs
+        self.sampling = sampling
+
+    def fit_transform(self, X, y=None, **fit_params):
+        return self.fit(X, **fit_params).transform(X)
+
+    def fit(self, X, y=None):
+        """Fit estimator to data.
+        Samples a subset of training points, computes kernel
+        on these and computes normalization matrix.
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data.
+        """
+        X = check_array(X, accept_sparse='csr')
+        rnd = check_random_state(self.random_state)
+        n_samples = X.shape[0]
+
+        # get basis vectors
+        if self.n_components > n_samples:
+            # XXX should we just bail?
+            n_components = n_samples
+            warnings.warn("n_components > n_samples. This is not possible.\n"
+                          "n_components was set to n_samples, which results"
+                          " in inefficient evaluation of the full kernel.")
+        else:
+            n_components = self.n_components
+        n_components = min(n_samples, n_components)
+
+        if self.sampling == "uniform":
+            inds = rnd.permutation(n_samples)
+            basis_inds = inds[:n_components]
+            basis = X[basis_inds]
+        elif self.sampling == "kmeans":
+            kmeans = MiniBatchKMeans(n_clusters=n_components, random_state=rnd)
+            kmeans.fit_predict(X)
+            basis = kmeans.cluster_centers_
+        else:
+            raise ValueError(
+                "ERROR. {nystrom_sampling} is not a valid sampling strategy for Nyström method.".format(
+                    nystrom_sampling=self.sampling))
+
+        basis_kernel = pairwise_kernels(basis, metric=self.kernel,
+                                        filter_params=True,
+                                        n_jobs=self.n_jobs,
+                                        **self._get_kernel_params())
+
+        # sqrt of kernel matrix on basis vectors
+        U, S, V = svd(basis_kernel)
+        S = np.maximum(S, 1e-12)
+        self.normalization_ = np.dot(U / np.sqrt(S), V)
+        self.components_ = basis
+        return self
+
+    def transform(self, X):
+        """Apply feature map to X.
+        Computes an approximate feature map using the kernel
+        between some training points and X.
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Data to transform.
+        Returns
+        -------
+        X_transformed : ndarray of shape (n_samples, n_components)
+            Transformed data.
+        """
+        X = check_array(X, accept_sparse='csr')
+        kernel_params = self._get_kernel_params()
+        embedded = pairwise_kernels(X, self.components_,
+                                    metric=self.kernel,
+                                    filter_params=True,
+                                    n_jobs=self.n_jobs,
+                                    **kernel_params)
+        return np.dot(embedded, self.normalization_.T)
+
+    def _get_kernel_params(self):
+        params = self.kernel_params
+        if params is None:
+            params = {}
+        return params
