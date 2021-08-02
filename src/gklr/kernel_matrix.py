@@ -17,6 +17,7 @@ class KernelMatrix():
         self.nystrom = False
         self.nystrom_sampling = "uniform"
         self.nystrom_compression = DEFAULT_NYSTROM_COMPRESSION
+        self.n_jobs = None
         self.alternatives = None
         self.K_per_alternative = dict()
         self.alt_index = dict()
@@ -47,6 +48,9 @@ class KernelMatrix():
         if "compression" in kernel_params:
             self.nystrom_compression = kernel_params["compression"]
             del kernel_params["compression"]
+        if "n_jobs" in kernel_params:
+            self.n_jobs = kernel_params["n_jobs"]
+            del kernel_params["n_jobs"]
 
         if self.nystrom == True:
             # TODO: Check that Z is None
@@ -92,7 +96,7 @@ class KernelMatrix():
                 if self.nystrom:
                     nystrom_components = int(X_alt.shape[0] * self.nystrom_compression)
                     nystrom_kernel = Nystroem(kernel=kernel_type, n_components=nystrom_components,
-                                              sampling=self.nystrom_sampling, **kernel_params)
+                                              sampling=self.nystrom_sampling, kernel_params=kernel_params)
                     K_aux = nystrom_kernel.fit_transform(X_alt)
                 else:
                     K_aux = self._kernel(Z_alt, X_alt, **kernel_params).astype(DTYPE)
