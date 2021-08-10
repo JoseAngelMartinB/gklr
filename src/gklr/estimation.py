@@ -18,7 +18,8 @@ class Estimation():
         maxiter = 1000
 
         options = {'gtol': gradient_tol,
-                   "maxiter": maxiter}
+                   "maxiter": maxiter,
+                   "maxls": 30}
         res = minimize(self.objective_function, params, method=self.method, jac=True, tol=loss_tol, options=options)
         results = {
             "fun": res.fun, # Final value of the objective function

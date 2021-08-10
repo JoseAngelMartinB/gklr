@@ -225,7 +225,7 @@ class Nystroem():
             basis_inds = inds[:n_components]
             basis = X[basis_inds]
         elif self.sampling == "kmeans":
-            kmeans = MiniBatchKMeans(n_clusters=n_components, random_state=rnd)
+            kmeans = MiniBatchKMeans(n_clusters=n_components, random_state=rnd, batch_size=n_components*5, max_iter=100)
             kmeans.fit_predict(X)
             basis = kmeans.cluster_centers_
         else:
