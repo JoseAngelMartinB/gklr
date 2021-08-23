@@ -16,7 +16,6 @@ class KernelCalcs(Calcs):
     def log_likelihood(self, alpha, return_P=False):
         P = self.calc_probabilities(alpha)
         log_P = np.log(P)
-        log_P = np.log(self.calc_probabilities(alpha))
         log_likelihood = np.sum(log_P[np.arange(len(log_P)), self.K.get_choices_indices()]) # TODO: .copy)  ??
         if return_P:
             return (log_likelihood, P)
