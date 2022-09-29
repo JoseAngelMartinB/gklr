@@ -1,4 +1,5 @@
 import sys
+import gc
 import time
 from pympler import asizeof
 from pympler.tracker import SummaryTracker
@@ -34,7 +35,7 @@ class KernelModel:
             self._model_params = model_params
 
     def _create_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None, train=True):
-        success = 1 # TODO: check when success is 0
+        success = 1 # TODO: Check conditions before create kernel, if not satisfied, then success is 0
         # TODO: ensure_columns_are_in_dataframe
         # TODO: ensure_valid_variables_passed_to_kernel_matrix
 
@@ -69,6 +70,7 @@ class KernelModel:
             self._Z = None
         else:
             raise ValueError("dataset must be a value in: ['train', 'test', 'both']")
+        gc.collect()
         return None
 
     def set_kernel_train(self, X, choice_column, obs_column, attributes, kernel_params, verbose=1):
@@ -78,7 +80,8 @@ class KernelModel:
         elapsed_time_sec = time.time() - start_time
 
         if success == 0:
-            print("ERROR. The kernel matrix for the train set have not been created.")
+            self.clear_kernel(dataset="train")
+            print("ERROR. The kernel matrix for the train set have NOT been created.")
             sys.stdout.flush()
             return None
         else:
