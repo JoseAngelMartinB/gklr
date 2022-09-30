@@ -13,7 +13,7 @@ class KernelMatrix():
         self.nystrom_compression = DEFAULT_NYSTROM_COMPRESSION
         self.alternatives = None
         self.K_per_alternative = dict()
-        self.alt_index = dict()
+        self.alt_to_index = dict() # Links each alternative with an index
         self.n_cols = 0
         self.n_rows = 0
         self.choices = None
@@ -44,6 +44,7 @@ class KernelMatrix():
             pass
         else:
             if "n_jobs" in kernel_params:
+                # TODO: Implement n_jobs (parallelization)
                 del kernel_params["n_jobs"]
             self._kernel = kernel_type_to_class[kernel_type]
 
@@ -58,19 +59,20 @@ class KernelMatrix():
         self._K = dict()
 
         # Obtain the Kernel Matrix for each choice alternative
-        index = 0
+        index = 0 
         for alt in self.alternatives:
-            # Add the index of the alternative to `alt_index`
-            self.alt_index[alt] = index
+            # Add the index of the alternative to `alt_to_index`
+            self.alt_to_index[alt] = index
 
             # Obtain the list of attributes to be considered for alternative `alt`
             alt_attributes = attributes[alt]
 
-            # Check if the kernel matrix for that alternative is already stored (same matrix)
+            # Assign to the alternative a default kernel matrix index
             self.K_per_alternative[index] = index
-            for prev_alt in self.alt_index.keys():
+            # Check if the kernel matrix for that alternative was already stored (same matrix)
+            for prev_alt in self.alt_to_index.keys():
                 if alt_attributes == attributes[prev_alt]:
-                    self.K_per_alternative[index] = self.alt_index[prev_alt]
+                    self.K_per_alternative[index] = self.alt_to_index[prev_alt]
                     break
 
             if self.K_per_alternative[index] == index:
@@ -82,10 +84,10 @@ class KernelMatrix():
                 # Create the Kernel Matrix for alternative i
                 if self.nystrom:
                     nystrom_components = int(X_alt.shape[0] * self.nystrom_compression)
-                    nystrom_kernel = Nystroem(kernel=kernel_type, n_components = nystrom_components, **kernel_params)
+                    nystrom_kernel = Nystroem(kernel=kernel_type, n_components=nystrom_components, **kernel_params)
                     K_aux = nystrom_kernel.fit_transform(X_alt)
                 else:
-                    K_aux = self._kernel(Z_alt, X_alt, **kernel_params).astype(DTYPE)
+                    K_aux = self._kernel(Z_alt, X_alt, **kernel_params).astype(DEFAULT_DTYPE)
                 self._K[index] = K_aux
 
             index += 1
@@ -126,7 +128,7 @@ class KernelMatrix():
         if self.choices_indices is None:
             choice_indices = []
             for choice in self.choices.to_list():
-                choice_indices.append(self.alt_index[choice])
+                choice_indices.append(self.alt_to_index[choice])
             self.choices_indices = np.array(choice_indices)
         return self.choices_indices
 
@@ -147,8 +149,8 @@ class KernelMatrix():
             if alt is None:
                 return self._K
             else:
-                if alt in self.alt_index.keys():
-                    return self._K[self.K_per_alternative[self.alt_index[alt]]]
+                if alt in self.alt_to_index.keys():
+                    return self._K[self.K_per_alternative[self.alt_to_index[alt]]]
                 else:
                     raise ValueError(
                         "ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix "

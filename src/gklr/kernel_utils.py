@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.metrics import pairwise
 
 # Define constants
-DTYPE = np.float64
+DEFAULT_DTYPE = np.float64
 VALID_PMLE_METHODS = [None, "Tikhonov"]
 DEFAULT_NYSTROM_COMPRESSION = 0.1
 

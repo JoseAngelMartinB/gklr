@@ -146,7 +146,7 @@ class KernelModel:
             return None
 
         if init_parms is None:
-            init_parms = np.zeros(self.alpha_shape, dtype=DTYPE)
+            init_parms = np.zeros(self.alpha_shape, dtype=DEFAULT_DTYPE)
         else:
             pass # TODO: check that there are self.n_parameters and then make a cast to self.alpha_shape
 
@@ -157,7 +157,7 @@ class KernelModel:
         estimator = KernelEstimator(calcs=calcs, pmle=pmle, pmle_lambda=pmle_lambda, method=method, verbose=verbose)
 
         # Log-likelihood at zero
-        alpha_at_0 = np.zeros(self.alpha_shape, dtype=DTYPE)
+        alpha_at_0 = np.zeros(self.alpha_shape, dtype=DEFAULT_DTYPE)
         log_likelihood_at_zero = calcs.log_likelihood(alpha_at_0)
 
         # Initial log-likelihood

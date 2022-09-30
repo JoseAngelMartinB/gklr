@@ -39,7 +39,7 @@ class KernelCalcs(Calcs):
 
         H = grad_penalization + P - Z
 
-        gradient = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
+        gradient = np.ndarray((self.K.get_num_rows(), 0), dtype=DEFAULT_DTYPE)
         for alt in range(0,self.K.get_num_alternatives()):
             gradient_alt = self.K.dot(H[:, alt], index=alt)
             gradient_alt = (gradient_alt / H.shape[0]).reshape((self.K.get_num_rows(),1))
@@ -50,7 +50,7 @@ class KernelCalcs(Calcs):
         return (log_likelihood, gradient)
 
     def calc_f(self, alpha):
-        f = np.ndarray((self.K.get_num_rows(), 0), dtype=DTYPE)
+        f = np.ndarray((self.K.get_num_rows(), 0), dtype=DEFAULT_DTYPE)
         for alt in range(0,self.K.get_num_alternatives()):
             alpha_alt = alpha[:, alt].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
             f_alt = self.K.dot(alpha_alt, index=alt)
