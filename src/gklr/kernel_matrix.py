@@ -21,9 +21,9 @@ class KernelMatrix():
         self.choices_matrix = None
 
         # Create the kernel matrix K
-        self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, Z)
+        self._init_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, Z)
 
-    def _create_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None):
+    def _init_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None):
         # TODO: Check that attributescontains more than 1 alternative
         # TODO: Check that none alternative from attributes contains no attributes at all (giving a 0x0 matrix)
         self._kernel_params = kernel_params.copy()
@@ -46,7 +46,6 @@ class KernelMatrix():
             if "n_jobs" in kernel_params:
                 # TODO: Implement n_jobs (parallelization)
                 del kernel_params["n_jobs"]
-            self._kernel = kernel_type_to_class[kernel_type]
 
         # If no reference dataframe Z is provided, then X will be the reference dataframe
         if Z is None:
@@ -87,20 +86,19 @@ class KernelMatrix():
                     nystrom_kernel = Nystroem(kernel=kernel_type, n_components=nystrom_components, **kernel_params)
                     K_aux = nystrom_kernel.fit_transform(X_alt)
                 else:
+                    self._kernel = kernel_type_to_class[kernel_type]
                     K_aux = self._kernel(Z_alt, X_alt, **kernel_params).astype(DEFAULT_DTYPE)
                 self._K[index] = K_aux
 
             index += 1
 
         # Store the number of columns and rows on the kernel matrix
-        if self.n_rows == 0:
-            self.n_rows = K_aux.shape[0]
-        if self.n_cols == 0:
-            if self.nystrom:
-                # The matrix must be symmetric
-                self.n_cols = self.n_rows
-            else:
-                self.n_cols = K_aux.shape[1]
+        self.n_rows = K_aux.shape[0]
+        if self.nystrom:
+            # The matrix must be symmetric
+            self.n_cols = self.n_rows
+        else:
+            self.n_cols = K_aux.shape[1]
 
         # Store the choices per observation
         self.choices = Z[choice_column]

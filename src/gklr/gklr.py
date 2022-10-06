@@ -1,9 +1,12 @@
+from __future__ import annotations
+from typing import Optional, Any, Dict, List, Tuple
+
 import sys
 import gc
 import time
-from pympler import asizeof
-from pympler.tracker import SummaryTracker
+
 import numpy as np
+from pympler import asizeof
 
 from gklr.kernel_utils import *
 from gklr.kernel_estimator import KernelEstimator
@@ -14,7 +17,8 @@ from gklr.kernel_matrix import KernelMatrix
 class KernelModel:
     """Main class for GKLR models.
     """
-    def __init__(self, model_params=None):
+
+    def __init__(self, model_params: Optional[Dict[str, Any]] = None) -> None:
         self._X = None
         self.choice_column = None
         self.obs_column = None
@@ -34,7 +38,16 @@ class KernelModel:
             # TODO: Check parameters
             self._model_params = model_params
 
-    def _create_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None, train=True):
+    def _create_kernel_matrix(self,
+                              X: np.ndarray,
+                              choice_column: str,
+                              obs_column: str,
+                              attributes: Dict[int, List[str]],
+                              kernel_params: Dict[str, Any],
+                              Z: np.ndarray = None,
+                              train: bool = True) -> bool:
+        """Creates a KernelMatrix object.
+        """
         success = 1 # TODO: Check conditions before create kernel, if not satisfied, then success is 0
         # TODO: ensure_columns_are_in_dataframe
         # TODO: ensure_valid_variables_passed_to_kernel_matrix
@@ -47,7 +60,7 @@ class KernelModel:
             self._K_test = KernelMatrix(X, choice_column, obs_column, attributes, kernel_params, Z)
         return success
 
-    def get_kernel(self, dataset="train"):
+    def get_kernel(self, dataset: str = "train") -> KernelMatrix:
         if dataset == "train":
             return self._K
         elif dataset == "test":
@@ -57,7 +70,7 @@ class KernelModel:
         else:
             raise ValueError("dataset must be a value in: ['train', 'test', 'both']")
 
-    def clear_kernel(self, dataset="train"):
+    def clear_kernel(self, dataset: str = "train") -> None:
         if dataset == "train":
             self._K = None
         elif dataset == "test":
@@ -73,7 +86,15 @@ class KernelModel:
         gc.collect()
         return None
 
-    def set_kernel_train(self, X, choice_column, obs_column, attributes, kernel_params, verbose=1):
+    def set_kernel_train(self,
+                         X: np.ndarray,
+                         choice_column: str,
+                         obs_column: str,
+                         attributes: Dict[int, List[str]],
+                         kernel_params: Dict[str, Any],
+                         verbose: int = 1) -> None:
+        """ Computes the kernel matrix for the train dataset.
+        """
         self.clear_kernel(dataset="both")
         start_time = time.time()
         success = self._create_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params.copy(), train=True)
@@ -100,7 +121,15 @@ class KernelModel:
             sys.stdout.flush()
         return None
 
-    def set_kernel_test(self, Z, choice_column=None, obs_column=None, attributes=None, kernel_params=None, verbose=1):
+    def set_kernel_test(self,
+                        Z: np.ndarray,
+                        choice_column: str,
+                        obs_column: str,
+                        attributes: Dict[int, List[str]],
+                        kernel_params: Dict[str, Any],
+                        verbose: int = 1) -> None:
+        """ Computes the kernel matrix test dataset.
+        """
         if self._K is None:
             print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
             return None
@@ -140,7 +169,14 @@ class KernelModel:
             sys.stdout.flush()
         return None
 
-    def fit(self, init_parms = None, pmle="Tikhonov", pmle_lambda=0, method="L-BFGS-B", verbose=1):
+    def fit(self,
+            init_parms:Optional[np.ndarray] = None,
+            pmle: str = "Tikhonov",
+            pmle_lambda: float = 0,
+            method: str = "L-BFGS-B",
+            verbose: int = 1) -> None:
+        """ Fit the GKLR model.
+        """
         if self._K is None:
             print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
             return None
@@ -200,7 +236,7 @@ class KernelModel:
 
         return None
 
-    def predict_proba(self, train=False):
+    def predict_proba(self, train:bool = False) -> np.ndarray:
         """Predict class probabilities for the train or test kernel.
         """
         if train:
@@ -216,20 +252,20 @@ class KernelModel:
         proba = calcs.calc_probabilities(self.results["alpha"])
         return proba
 
-    def predict_log_proba(self, train=False):
+    def predict_log_proba(self, train:bool = False) -> np.ndarray:
         """Predict the natural logarithm of the class probabilities for the train or test kernel.
         """
         proba = self.predict_proba(train)
         return np.log(proba)
 
-    def predict(self, train=False):
+    def predict(self, train:bool = False) -> np.ndarray:
         """Predict class for the train or test kernel.
         """
         proba = self.predict_proba(train)
         encoded_labels = np.argmax(proba, axis=1)
         return self._K.alternatives.take(encoded_labels)
 
-    def score(self):
+    def score(self) -> float:
         """Predict the mean accuracy on the test kernel.
         """
         if self._K_test is None:
