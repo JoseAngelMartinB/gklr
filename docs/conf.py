@@ -86,6 +86,10 @@ templates_path = ["_templates"]
 autodoc_typehints = "description" 
 
 
+# Set both the class’ and the __init__ method’s docstring are concatenated and inserted.
+autoclass_content = 'both'
+
+
 # Configure AutoStructify
 # https://recommonmark.readthedocs.io/en/latest/auto_structify.html
 def setup(app):

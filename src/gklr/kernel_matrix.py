@@ -3,7 +3,7 @@ from sklearn.kernel_approximation import Nystroem
 from gklr.kernel_utils import *
 
 class KernelMatrix():
-    def __init__(self, X, choice_column, obs_column, attributes, kernel_params, Z=None):
+    def __init__(self, X, choice_column, attributes, kernel_params, Z=None):
         # TODO: Check arguments
         # Create a new kernel based on the kernel type selected
         self._kernel_params = None
@@ -21,9 +21,9 @@ class KernelMatrix():
         self.choices_matrix = None
 
         # Create the kernel matrix K
-        self._init_kernel_matrix(X, choice_column, obs_column, attributes, kernel_params, Z)
+        self._init_kernel_matrix(X, choice_column, attributes, kernel_params, Z)
 
-    def _init_kernel_matrix(self, X, choice_column, obs_column, attributes, kernel_params, Z=None):
+    def _init_kernel_matrix(self, X, choice_column, attributes, kernel_params, Z=None):
         # TODO: Check that attributescontains more than 1 alternative
         # TODO: Check that none alternative from attributes contains no attributes at all (giving a 0x0 matrix)
         self._kernel_params = kernel_params.copy()
