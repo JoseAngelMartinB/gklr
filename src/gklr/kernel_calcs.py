@@ -1,6 +1,9 @@
 
-from gklr.kernel_utils import *
-from gklr.calcs import Calcs
+"""GKLR kernel_calcs module."""
+
+from .logger import *
+from .kernel_utils import *
+from .calcs import Calcs
 
 class KernelCalcs(Calcs):
     def __init__(self, K):

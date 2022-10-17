@@ -1,6 +1,8 @@
+"""GKLR kernel_matrix module."""
 from sklearn.kernel_approximation import Nystroem
 
-from gklr.kernel_utils import *
+from .logger import *
+from .kernel_utils import *
 
 class KernelMatrix():
     def __init__(self, X, choice_column, attributes, kernel_params, Z=None):

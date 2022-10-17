@@ -1,7 +1,9 @@
+"""GKLR kernel_estimator module."""
 import sys
 
-from gklr.kernel_utils import *
-from gklr.estimation import Estimation
+from .logger import *
+from .kernel_utils import *
+from .estimation import Estimation
 
 class KernelEstimator(Estimation):
     def __init__(self, calcs, pmle, pmle_lambda, method, verbose):

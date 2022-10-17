@@ -1,5 +1,4 @@
-"""GKLR main module"""
-
+"""GKLR main module."""
 from __future__ import annotations
 from typing import Optional, Any, Dict, List
 
@@ -11,10 +10,11 @@ import numpy as np
 from pympler import asizeof
 import pandas as pd
 
-from gklr.kernel_utils import *
-from gklr.kernel_estimator import KernelEstimator
-from gklr.kernel_calcs import KernelCalcs
-from gklr.kernel_matrix import KernelMatrix
+from .logger import *
+from .kernel_utils import *
+from .kernel_estimator import KernelEstimator
+from .kernel_calcs import KernelCalcs
+from .kernel_matrix import KernelMatrix
 
 
 class KernelModel:
@@ -169,13 +169,14 @@ class KernelModel:
             self.attributes = attributes
             self.kernel_params = kernel_params
 
+        elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
+        K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K))
+
         if verbose >= 1:
-            elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
-            K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K))
-            print("The kernel matrix for the train set have been correctly created in {elapsed_time}. "
-                  "Size of the matrix object: {sizeK} {unit}".format(elapsed_time=elapsed_time_str, sizeK=K_size,
-                                                                  unit = K_size_u))
+            print(f"The kernel matrix for the train set have been correctly created in {elapsed_time_str}. "
+                  f"Size of the matrix object: {K_size} {K_size_u}")
             sys.stdout.flush()
+        logger_debug(f"Kernel matrix for train dataset estimated in {elapsed_time_str}. Size: {K_size} {K_size_u}")
         return None
 
     def set_kernel_test(self,
@@ -230,13 +231,13 @@ class KernelModel:
         else:
             self._Z = Z
 
+        elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
+        K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K_test))
         if verbose >= 1:
-            elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
-            K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K_test))
-            print("The kernel matrix for the test set have been correctly created in {elapsed_time}. "
-                  "Size of the matrix object: {sizeK} {unit}".format(elapsed_time=elapsed_time_str, sizeK=K_size,
-                                                                     unit=K_size_u))
+            print(f"The kernel matrix for the test set have been correctly created in {elapsed_time_str}. "
+                  f"Size of the matrix object: {K_size} {K_size_u}")
             sys.stdout.flush()
+        logger_debug(f"Kernel matrix for test dataset estimated in {elapsed_time_str}. Size: {K_size} {K_size_u}")
         return None
 
     def fit(self,

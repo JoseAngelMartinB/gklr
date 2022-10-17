@@ -1,3 +1,5 @@
+"""GKLR calcs module."""
+
 import numpy as np
 
 class Calcs():

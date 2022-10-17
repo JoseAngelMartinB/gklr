@@ -1,5 +1,9 @@
+"""GKLR estimation module."""
+
 import numpy as np
 from scipy.optimize import minimize
+
+from .logger import *
 
 class Estimation():
     def __init__(self, calcs, pmle, pmle_lambda, method, verbose):
