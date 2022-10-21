@@ -6,7 +6,7 @@ import sys
 import multiprocessing
 import numpy as np
 
-from . import __version__
+
 from .logger import *
 
 __all__ = ["Config"]
@@ -21,6 +21,7 @@ def init_environment_variables(num_cores: Optional[int] = None):
 class Config:
     def __init__(self):
         """Class object to store config and hyperparameters."""
+        from gklr import __version__
         self.info = {
             "python_version": sys.version,
             "GKLR_version": __version__,
@@ -56,7 +57,12 @@ class Config:
         return self.hyperparameters
 
     def set_hyperparameter(self, key: str, value: Any):
-        """Helper method to set the hyperparameters of GKLR."""
+        """Helper method to set the hyperparameters of GKLR.
+        
+        Args:
+            key: The hyperparameter to set.
+            value: The value to set the hyperparameter to.
+        """
         self.hyperparameters[key] = value
         logger_debug(f"Set hyperparameter {key} = {value}")
 

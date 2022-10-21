@@ -11,6 +11,7 @@ from pympler import asizeof
 import pandas as pd
 
 from .logger import *
+from .config import Config
 from .kernel_utils import *
 from .kernel_estimator import KernelEstimator
 from .kernel_calcs import KernelCalcs
@@ -45,6 +46,10 @@ class KernelModel:
         else:
             # TODO: Check parameters
             self._model_params = model_params
+
+        self.config = Config()
+
+        logger_debug("KernelModel initialized.")  
 
     def _create_kernel_matrix(self,
                               X: pd.DataFrame,
