@@ -18,8 +18,7 @@ from .kernel_matrix import KernelMatrix
 
 
 class KernelModel:
-    """Main class for GKLR models.
-    """
+    """Main class for GKLR models."""
 
     def __init__(self, model_params: Optional[Dict[str, Any]] = None) -> None:
         """Constructor.
@@ -68,12 +67,12 @@ class KernelModel:
                 content.
             Z: Test dataset stored in a pandas DataFrame. Default: None
             train: A boolean that indicates if the kernel matrix to be created is for train or test data.
-                Default: True
+                Default: True.
 
         Returns:
             A bolean that indicates if the kerne matrix was successfully created.
         """
-        success = 1 # TODO: Check conditions before create kernel, if not satisfied, then success is 0
+        success = True # TODO: Check conditions before create kernel, if not satisfied, then success is False
         # TODO: ensure_columns_are_in_dataframe
         # TODO: ensure_valid_variables_passed_to_kernel_matrix
 
@@ -85,10 +84,8 @@ class KernelModel:
             self._K_test = KernelMatrix(X, choice_column, attributes, kernel_params, Z)
         return success
 
-    def get_kernel(self, dataset: str = "train") -> KernelMatrix:
+    def get_kernel(self, dataset: str = "train") -> KernelMatrix | None:
         """Returns the train and/or test KernelMatrix object.
-
-        Removes the train and test kernel matrices and frees the memory.
 
         Args:
             dataset: The kernel matrix to be retrieved. It can take the values: "train", "test" or "both".
@@ -101,10 +98,10 @@ class KernelModel:
             return self._K
         elif dataset == "test":
             return self._K_test
-        elif dataset == "both":
-            return (self._K, self._K_test)
         else:
-            raise ValueError("dataset must be a value in: ['train', 'test', 'both']")
+            msg = "Dataset must be a value in: ['train', 'test', 'both']"
+            logger_error(msg)
+            raise ValueError(msg)
 
     def clear_kernel(self, dataset: str = "train") -> None:
         """Clear the kernel matrices previously computed.
@@ -126,7 +123,9 @@ class KernelModel:
             self._X = None
             self._Z = None
         else:
-            raise ValueError("dataset must be a value in: ['train', 'test', 'both']")
+            msg = "Dataset must be a value in: ['train', 'test', 'both']"
+            logger_error(msg)
+            raise ValueError(msg)
         gc.collect()
         return None
 
@@ -160,9 +159,9 @@ class KernelModel:
 
         if success == 0:
             self.clear_kernel(dataset="train")
-            print("ERROR. The kernel matrix for the train set have NOT been created.")
-            sys.stdout.flush()
-            return None
+            msg = "ERROR. The kernel matrix for the train set have NOT been created."
+            logger_error(msg)
+            raise RuntimeError(msg)
         else:
             self._X = X
             self.choice_column = choice_column
@@ -181,9 +180,9 @@ class KernelModel:
 
     def set_kernel_test(self,
                         Z: pd.DataFrame,
-                        choice_column: str,
-                        attributes: Dict[int, List[str]],
-                        kernel_params: Dict[str, Any],
+                        choice_column: Optional[str] = None,
+                        attributes: Optional[Dict[int, List[str]]] = None,
+                        kernel_params: Optional[Dict[str, Any]] = None,
                         verbose: int = 1
     ) -> None:
         """Computes the kernel matrix test dataset.
@@ -202,16 +201,19 @@ class KernelModel:
             verbose: Indicates the level of verbosity of the function. If 0, no output will be printed. If 1, basic
                 information about the time spent and the size of the matrix will be displayed. Default: 1.
         """
-        if self._K is None:
-            print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
-            return None
+        if self._X is None or self._K is None or self.choice_column is None or self.attributes is None:
+            msg = "ERROR. First you must compute the kernel for the train dataset using set_kernel_train()."
+            logger_error(msg)
+            raise RuntimeError(msg)
 
         self.clear_kernel(dataset="test")
 
         # Set default values for the input parameters
         choice_column = self.choice_column if choice_column is None else choice_column
         attributes = self.attributes if attributes is None else attributes
-        kernel_params = self.kernel_params.copy() if kernel_params is None else kernel_params
+        kernel_params = self.kernel_params if kernel_params is None else kernel_params
+        if kernel_params is None:
+            kernel_params = {}
 
         # Nystrom method is not allowed for the test kernel
         if "nystrom" in kernel_params:
@@ -225,9 +227,9 @@ class KernelModel:
         elapsed_time_sec = time.time() - start_time
 
         if success == 0:
-            print("ERROR. The kernel matrix for the test set have not been created.")
-            sys.stdout.flush()
-            return None
+            msg = "ERROR. The kernel matrix for the test set have not been created."
+            logger_error(msg)
+            raise RuntimeError(msg)
         else:
             self._Z = Z
 
@@ -253,15 +255,16 @@ class KernelModel:
 
         Args:
             init_parms: Initial value of the parameters to be optimized. Default: None
-            pmle: Penalization method. Default: None
+            pmle: Penalization method. Default: None.
             pmle_lambda: Parameter for the penalization method. Default: 0
-            method: Optimization method. Default: "L-BFGS-B"
+            method: Optimization method. Default: "L-BFGS-B".
             verbose: Indicates the level of verbosity of the function. If 0, no output will be printed. If 1, basic
                 information about the time spent and the Log-likelihood value will be displayed. Default: 1.
         """
-        if self._K is None:
-            print("ERROR. First you must compute the kernel for the train dataset using set_kernel_train().")
-            return None
+        if self._K is None or self.alpha_shape is None:
+            msg = "ERROR. First you must compute the kernel for the train dataset using set_kernel_train()."
+            logger_error(msg)
+            raise RuntimeError(msg)
 
         if init_parms is None:
             init_parms = np.zeros(self.alpha_shape, dtype=DEFAULT_DTYPE)
@@ -276,10 +279,10 @@ class KernelModel:
 
         # Log-likelihood at zero
         alpha_at_0 = np.zeros(self.alpha_shape, dtype=DEFAULT_DTYPE)
-        log_likelihood_at_zero = calcs.log_likelihood(alpha_at_0)
+        log_likelihood_at_zero, _ = calcs.log_likelihood(alpha_at_0)
 
         # Initial log-likelihood
-        initial_log_likelihood = calcs.log_likelihood(init_parms)
+        initial_log_likelihood, _ = calcs.log_likelihood(init_parms)
 
         if verbose >= 1:
             print("The estimation is going to start...\n"
@@ -296,7 +299,7 @@ class KernelModel:
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 
-        final_log_likelihood = calcs.log_likelihood(self.results["alpha"])
+        final_log_likelihood, _ = calcs.log_likelihood(self.results["alpha"])
         mcfadden_r2 = 1 - final_log_likelihood / log_likelihood_at_zero  # TODO: Implement a method to compute metrics
 
         # Store post-estimation information
@@ -328,15 +331,26 @@ class KernelModel:
         Returns:
             Probability of the sample for each class in the model.
         """
+        if self._K is None:
+            msg = "ERROR. Training kernel not found or not correctly defined. Use set_kernel_test() to compute it."
+            logger_error(msg)
+            raise RuntimeError(msg)
+
         if train:
             # Create the Calcs instance
             calcs = KernelCalcs(K=self._K)
         else:
             if self._K_test is None:
-                print("ERROR. First you must compute the kernel for the test dataset using set_kernel_test().")
-                return None
+                msg = "ERROR. First you must compute the kernel for the test dataset using set_kernel_test()."
+                logger_error(msg)
+                raise RuntimeError(msg)
             # Create the Calcs instance
             calcs = KernelCalcs(K=self._K_test)
+
+        if self.results is None:
+            msg = "ERROR. First you must estimate the model using fit()."
+            logger_error(msg)
+            raise RuntimeError(msg)
 
         proba = calcs.calc_probabilities(self.results["alpha"])
         return proba
@@ -364,19 +378,30 @@ class KernelModel:
         Returns:
             Vector containing the class labels of the sample.
         """
+        if self._K is None or self._K.alternatives is None:
+            msg = "ERROR. Training kernel not found or not correctly defined. Use set_kernel_test() to compute it."
+            logger_error(msg)
+            raise RuntimeError(msg)
+
         proba = self.predict_proba(train)
         encoded_labels = np.argmax(proba, axis=1)
         return self._K.alternatives.take(encoded_labels)
 
-    def score(self) -> float:
+    def score(self) -> float | np.float64:
         """Predict the mean accuracy on the test kernel.
 
         Returns:
             Mean accuracy of ``self.predict()``.
         """
-        if self._K_test is None:
-            print("ERROR. First you must compute the kernel for the test dataset using set_kernel_test().")
-            return None
+        if self.choice_column is None:
+            msg = "ERROR. First you must compute the kernel for the train dataset using set_kernel_train()."
+            logger_error(msg)
+            raise RuntimeError(msg)
+
+        if self._K_test is None or self._Z is None:
+            msg = "ERROR. First you must compute the kernel for the test dataset using set_kernel_test()."
+            logger_error(msg)
+            raise RuntimeError(msg)
 
         y_true = self._Z[self.choice_column]
         y_predict = self.predict()

@@ -152,9 +152,10 @@ class KernelMatrix():
                 if alt in self.alt_to_index.keys():
                     return self._K[self.K_per_alternative[self.alt_to_index[alt]]]
                 else:
-                    raise ValueError(
-                        "ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix "
-                        "asociated with this alternative.".format(alt=alt))
+                    msg = (f"ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix ",
+                           "asociated with this alternative.")
+                    logger_error(msg)
+                    raise ValueError(msg)
         else:
             return self._K[self.K_per_alternative[index]]
 
