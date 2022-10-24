@@ -41,7 +41,8 @@ def _get_console_handler():
 
 
 def _get_file_handler(logPath, fileName):
-    handler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
+    handler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName), 
+        mode="w")
     handler.setFormatter(default_formatter)
     return handler
 

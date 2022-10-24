@@ -1,9 +1,7 @@
 """GKLR package"""
 
-import sys
-
-from .gklr import *
 from .logger import *
+from .gklr import *
 
 __author__ = """José Ángel Martín Baos"""
 
@@ -22,7 +20,7 @@ except PackageNotFoundError:  # pragma: no cover
 finally:
     del version, PackageNotFoundError
 
-logger_debug("GKLR module initialized.")
+logger_debug("GKLR module initialized.")  
 
 def display_info():
     """Display GKLR module information."""
