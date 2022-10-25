@@ -17,6 +17,7 @@ from .kernel_estimator import KernelEstimator
 from .kernel_calcs import KernelCalcs
 from .kernel_matrix import KernelMatrix
 
+valid_gklr_params = ["n_jobs", "nystrom", "compression"]
 
 class KernelModel:
     """Main class for GKLR models."""
@@ -25,13 +26,12 @@ class KernelModel:
         """Constructor.
 
         Args:
-            model_params: A dict where the keys are the parameters of the kernel model and the value their content.
+            model_params: A dict where the keys are the parameters of the kernel model and the value they contain.
                 Default: None.
         """
         self._X = None
         self.choice_column = None
         self.attributes = None
-        self.kernel_params = None
         self._Z = None
         self._K = None
         self._K_test = None
@@ -50,13 +50,43 @@ class KernelModel:
 
         logger_debug("KernelModel initialized.")  
 
+    def _set_kernel_params(self, hyperparams: Dict[str, Any]) -> None:
+        """Set the kernel parameters.
+
+        Store the hyperparameters of the GKLR model in a config object and
+        a dict with the parameters to be passed to the kernel function.
+
+        Args:
+            hyperparams: A dict where the keys are the hyperparameters passed 
+                to the GKLR object and their value.
+        """
+        kernel_params = hyperparams.copy()
+        list_kernel_params = list(kernel_params.keys())
+
+        if "kernel" in kernel_params and kernel_params["kernel"] in valid_kernel_list:
+            self.config.set_hyperparameter("kernel", kernel_params.pop("kernel"))
+            list_kernel_params.remove("kernel")
+
+        for param in list_kernel_params:
+            if param in valid_gklr_params:
+                self.config.set_hyperparameter(param, kernel_params.pop(param))
+            elif param in valid_kernel_params:
+                # Valid parameter for the kernel function
+                pass
+            else:   
+                raise ValueError(f"Parameter {param} is not a valid KernelModel",
+                    "parameter.")
+
+        # Store the kernel function parameters
+        self.config.set_hyperparameter("kernel_params", kernel_params)
+
     def _create_kernel_matrix(self,
                               X: pd.DataFrame,
                               choice_column: str,
                               attributes: Dict[int, List[str]],
-                              kernel_params: Dict[str, Any],
+                              config: Config,
                               Z: Optional[pd.DataFrame] = None,
-                              train: bool = True
+                              train: bool = True,
     ) -> bool:
         """Creates a KernelMatrix object.
 
@@ -68,8 +98,7 @@ class KernelModel:
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
-            kernel_params: A dict where the keys are the parameters passed to the kernel function and the value their
-                content.
+            config: A Config object that contains the hyperparameters of the GKLR model.
             Z: Test dataset stored in a pandas DataFrame. Default: None
             train: A boolean that indicates if the kernel matrix to be created is for train or test data.
                 Default: True.
@@ -81,12 +110,14 @@ class KernelModel:
         # TODO: ensure_columns_are_in_dataframe
         # TODO: ensure_valid_variables_passed_to_kernel_matrix
 
+        config.check_values()
+
         if train:
-            self._K = KernelMatrix(X, choice_column, attributes, kernel_params, Z)
+            self._K = KernelMatrix(X, choice_column, attributes, config, Z)
             self.n_parameters = self._K.get_num_cols() * self._K.get_num_alternatives() # One alpha vector per alternative
             self.alpha_shape = (self._K.get_num_cols(), self._K.get_num_alternatives())
         else:
-            self._K_test = KernelMatrix(X, choice_column, attributes, kernel_params, Z)
+            self._K_test = KernelMatrix(X, choice_column, attributes, config, Z)
         return success
 
     def get_kernel(self, dataset: str = "train") -> KernelMatrix | None:
@@ -138,8 +169,8 @@ class KernelModel:
                          X: pd.DataFrame,
                          choice_column: str,
                          attributes: Dict[int, List[str]],
-                         kernel_params: Dict[str, Any],
-                         verbose: int = 1
+                         hyperparams: Dict[str, Any],
+                         verbose: int = 1,
     ) -> None:
         """Computes the kernel matrix for the train dataset.
 
@@ -152,14 +183,15 @@ class KernelModel:
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
-            kernel_params: A dict where the keys are the parameters passed to the kernel function and the value their
-                content.
+            hyperparams: A dict where the keys are the hyperparameters passed to the kernel function and the value they
+                contain.
             verbose: Indicates the level of verbosity of the function. If 0, no output will be printed. If 1, basic
                 information about the time spent and the size of the matrix will be displayed. Default: 1.
         """
         self.clear_kernel(dataset="both")
+        self._set_kernel_params(hyperparams)
         start_time = time.time()
-        success = self._create_kernel_matrix(X, choice_column, attributes, kernel_params.copy(), train=True)
+        success = self._create_kernel_matrix(X, choice_column, attributes, self.config, train=True)
         elapsed_time_sec = time.time() - start_time
 
         if success == 0:
@@ -171,7 +203,6 @@ class KernelModel:
             self._X = X
             self.choice_column = choice_column
             self.attributes = attributes
-            self.kernel_params = kernel_params
 
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
         K_size, K_size_u = convert_size_bytes_to_human_readable(asizeof.asizeof(self._K))
@@ -187,8 +218,7 @@ class KernelModel:
                         Z: pd.DataFrame,
                         choice_column: Optional[str] = None,
                         attributes: Optional[Dict[int, List[str]]] = None,
-                        kernel_params: Optional[Dict[str, Any]] = None,
-                        verbose: int = 1
+                        verbose: int = 1,
     ) -> None:
         """Computes the kernel matrix test dataset.
 
@@ -201,8 +231,6 @@ class KernelModel:
             attributes: A dict that contains the columns of DataFrame `Z` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
-            kernel_params: A dict where the keys are the parameters passed to the kernel function and the value their
-                content.
             verbose: Indicates the level of verbosity of the function. If 0, no output will be printed. If 1, basic
                 information about the time spent and the size of the matrix will be displayed. Default: 1.
         """
@@ -216,19 +244,10 @@ class KernelModel:
         # Set default values for the input parameters
         choice_column = self.choice_column if choice_column is None else choice_column
         attributes = self.attributes if attributes is None else attributes
-        kernel_params = self.kernel_params if kernel_params is None else kernel_params
-        if kernel_params is None:
-            kernel_params = {}
-
-        # Nystrom method is not allowed for the test kernel
-        if "nystrom" in kernel_params:
-            del kernel_params["nystrom"]
-        if "compression" in kernel_params:
-            del kernel_params["compression"]
 
         start_time = time.time()
-        success = self._create_kernel_matrix(self._X, choice_column, attributes, kernel_params, Z=Z,
-                                             train=False)
+        success = self._create_kernel_matrix(self._X, choice_column, attributes, self.config, 
+                                             Z=Z, train=False)
         elapsed_time_sec = time.time() - start_time
 
         if success == 0:
@@ -252,7 +271,7 @@ class KernelModel:
             pmle: str = "Tikhonov",
             pmle_lambda: float = 0,
             method: str = "L-BFGS-B",
-            verbose: int = 1
+            verbose: int = 1,
     ) -> None:
         """Fit the kernel model.
 
@@ -390,7 +409,7 @@ class KernelModel:
 
         proba = self.predict_proba(train)
         encoded_labels = np.argmax(proba, axis=1)
-        return self._K.alternatives.take(encoded_labels)
+        return self._K.get_alternatives().take(encoded_labels)
 
     def score(self) -> float | np.float64:
         """Predict the mean accuracy on the test kernel.

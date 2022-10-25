@@ -12,7 +12,7 @@ kernel_type_to_class = {"rbf": pairwise.rbf_kernel,
                         }
 
 valid_kernel_list = kernel_type_to_class.keys()
-
+valid_kernel_params = ["gamma"]
 
 def convert_size_bytes_to_human_readable(size_in_bytes):
    """ Convert the size from bytes to other units like KB, MB or GB"""

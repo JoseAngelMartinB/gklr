@@ -30,13 +30,13 @@ class Config:
         self.hyperparameters = {
             "num_cores": multiprocessing.cpu_count(),
             "kernel": "rbf",
-            "gamma": 1,
+            "kernel_params": {"gamma": 1.0},
             "nystrom": False,
             "compression": None,
         }
         init_environment_variables(self.hyperparameters["num_cores"])
 
-    def __print__(self):
+    def __str__(self):
         rval = f"\nGKLR hyperparameters:\n---------------\n"
         for key, val in self.hyperparameters.items():
             rval += f" - {key:<24}: {val}\n"
@@ -46,6 +46,8 @@ class Config:
     def __getitem__(self, name: str) -> Any:
         if name in self.hyperparameters:
             return self.hyperparameters[name]
+        else:
+            return None
 
     def __setitem__(self, name: str, val: Any) -> None:
         if name in self.hyperparameters:
@@ -66,10 +68,24 @@ class Config:
         self.hyperparameters[key] = value
         logger_debug(f"Set hyperparameter {key} = {value}")
 
+    def remove_hyperparameter(self, key: str):
+        """Helper method to remove a hyperparameter from GKLR.
+        
+        Args:
+            key: The hyperparameter to remove.
+        """
+        if key in self.hyperparameters:
+            del self.hyperparameters[key]
+            logger_debug(f"Removed hyperparameter {key}")
+        else:
+            msg = f"Hyperparameter {key} not found"
+            logger_error(msg)
+            raise ValueError(msg)
+
     def check_values(self):
         """Checks validity of hyperparameter values."""
-        assert isinstance(self["num_cores"], (int, np.int64))
-        assert isinstance(self["gamma"], (float))
+        assert isinstance(self["num_cores"], (int, np.integer))
+        assert isinstance(self["kernel_params"]["gamma"], float)
         assert isinstance(self["nystrom"], bool)
         assert (self["compression"] is None) or (isinstance(self["compression"], float))
         # TODO: Assert kernel
