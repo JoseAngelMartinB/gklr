@@ -37,6 +37,7 @@ class KernelMatrix():
         self.nystrom = False
         self.nystrom_compression = DEFAULT_NYSTROM_COMPRESSION
         self.alternatives = []
+        self.n_alternatives = 0
         self.K_per_alternative = dict()
         self.alt_to_index = dict() # Links each alternative with an index
         self.n_cols = 0
@@ -70,7 +71,7 @@ class KernelMatrix():
         # Initialize the kernel parameters
         kernel_type = self._config["kernel"]
         if kernel_type is None:
-            msg = "ERROR. Hyperparameter `kernel` is not specified. Set to 'rbf'."
+            msg = "Hyperparameter 'kernel' is not specified. Set to 'rbf'."
             logger_warning(msg)
             kernel_type = "rbf"
 
@@ -87,6 +88,7 @@ class KernelMatrix():
 
         # Store the alternatives (classes) available
         self.alternatives = list(np.fromiter(attributes.keys(), dtype=int))
+        self.n_alternatives = len(self.alternatives)
 
         # Initialize a dict K that contains the kernel matrix per each alternative
         self._K = dict()
@@ -169,7 +171,7 @@ class KernelMatrix():
         
         Returns:
             Number of available alternatives."""
-        return len(self.alternatives)
+        return self.n_alternatives
 
     def get_choices(self) -> np.ndarray:
         """Return the choices per observation.
@@ -178,7 +180,7 @@ class KernelMatrix():
             A numpy array with the choices per observation.
         """
         if self.choices is None:
-            msg = "ERROR. Kernel matrix not initialized."
+            msg = "Kernel matrix not initialized."
             logger_error(msg)
             raise RuntimeError(msg)
         return self.choices.to_numpy()
@@ -190,7 +192,7 @@ class KernelMatrix():
             A numpy array with the choices per observation as alternative indices.
         """
         if self.choices is None:
-            msg = "ERROR. Kernel matrix not initialized."
+            msg = "Kernel matrix not initialized."
             logger_error(msg)
             raise RuntimeError(msg)
         if self.choices_indices is None:
@@ -229,7 +231,7 @@ class KernelMatrix():
             The kernel matrix for all the alternatives, for alternative `alt`, or the matrix at index `index`.
         """
         if self._K is None:
-            msg = "ERROR. Kernel matrix not initialized."
+            msg = "Kernel matrix not initialized."
             logger_error(msg)
             raise RuntimeError(msg)
             
@@ -239,20 +241,20 @@ class KernelMatrix():
             if alt in self.alt_to_index.keys():
                 return self._K[self.K_per_alternative[self.alt_to_index[alt]]]
             else:
-                msg = (f"ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix ",
+                msg = (f"Alternative 'alt' = {alt} is not valid alternative. There is no kernel matrix "
                         "asociated with this alternative.")
                 logger_error(msg)
                 raise ValueError(msg)
         elif index is not None and alt is None:
-            if index in self.K_per_alternative.values():
+            if index < self.n_alternatives:
                 return self._K[self.K_per_alternative[index]]
             else:
-                msg = (f"ERROR. Index `index` = {index} is not valid index. There is no kernel matrix ",
+                msg = (f"'index' = {index} is not valid index. There is no kernel matrix "
                         "with this index.")
                 logger_error(msg)
                 raise ValueError(msg)
         else:
-            msg = (f"ERROR. The arguments `alt` and `index` cannot be used at the same time.")
+            msg = (f"The arguments 'alt' and 'index' cannot be used at the same time.")
             logger_error(msg)
             raise ValueError(msg)
 

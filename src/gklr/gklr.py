@@ -196,7 +196,7 @@ class KernelModel:
 
         if success == 0:
             self.clear_kernel(dataset="train")
-            msg = "ERROR. The kernel matrix for the train set have NOT been created."
+            msg = "The kernel matrix for the train set have NOT been created."
             logger_error(msg)
             raise RuntimeError(msg)
         else:
@@ -235,7 +235,7 @@ class KernelModel:
                 information about the time spent and the size of the matrix will be displayed. Default: 1.
         """
         if self._X is None or self._K is None or self.choice_column is None or self.attributes is None:
-            msg = "ERROR. First you must compute the kernel for the train dataset using set_kernel_train()."
+            msg = "First you must compute the kernel for the train dataset using set_kernel_train()."
             logger_error(msg)
             raise RuntimeError(msg)
 
@@ -251,7 +251,7 @@ class KernelModel:
         elapsed_time_sec = time.time() - start_time
 
         if success == 0:
-            msg = "ERROR. The kernel matrix for the test set have not been created."
+            msg = "The kernel matrix for the test set have not been created."
             logger_error(msg)
             raise RuntimeError(msg)
         else:
@@ -286,7 +286,7 @@ class KernelModel:
                 information about the time spent and the Log-likelihood value will be displayed. Default: 1.
         """
         if self._K is None or self.alpha_shape is None:
-            msg = "ERROR. First you must compute the kernel for the train dataset using set_kernel_train()."
+            msg = "First you must compute the kernel for the train dataset using set_kernel_train()."
             logger_error(msg)
             raise RuntimeError(msg)
 
@@ -356,7 +356,7 @@ class KernelModel:
             Probability of the sample for each class in the model.
         """
         if self._K is None:
-            msg = "ERROR. Training kernel not found or not correctly defined. Use set_kernel_test() to compute it."
+            msg = "Training kernel not found or not correctly defined. Use set_kernel_test() to compute it."
             logger_error(msg)
             raise RuntimeError(msg)
 
@@ -365,14 +365,14 @@ class KernelModel:
             calcs = KernelCalcs(K=self._K)
         else:
             if self._K_test is None:
-                msg = "ERROR. First you must compute the kernel for the test dataset using set_kernel_test()."
+                msg = "First you must compute the kernel for the test dataset using set_kernel_test()."
                 logger_error(msg)
                 raise RuntimeError(msg)
             # Create the Calcs instance
             calcs = KernelCalcs(K=self._K_test)
 
         if self.results is None:
-            msg = "ERROR. First you must estimate the model using fit()."
+            msg = "First you must estimate the model using fit()."
             logger_error(msg)
             raise RuntimeError(msg)
 
@@ -403,7 +403,7 @@ class KernelModel:
             Vector containing the class labels of the sample.
         """
         if self._K is None or self._K.alternatives is None:
-            msg = "ERROR. Training kernel not found or not correctly defined. Use set_kernel_test() to compute it."
+            msg = "Training kernel not found or not correctly defined. Use set_kernel_test() to compute it."
             logger_error(msg)
             raise RuntimeError(msg)
 
@@ -415,15 +415,15 @@ class KernelModel:
         """Predict the mean accuracy on the test kernel.
 
         Returns:
-            Mean accuracy of ``self.predict()``.
+            Mean accuracy of `self.predict()`.
         """
         if self.choice_column is None:
-            msg = "ERROR. First you must compute the kernel for the train dataset using set_kernel_train()."
+            msg = "First you must compute the kernel for the train dataset using set_kernel_train()."
             logger_error(msg)
             raise RuntimeError(msg)
 
         if self._K_test is None or self._Z is None:
-            msg = "ERROR. First you must compute the kernel for the test dataset using set_kernel_test()."
+            msg = "First you must compute the kernel for the test dataset using set_kernel_test()."
             logger_error(msg)
             raise RuntimeError(msg)
 
