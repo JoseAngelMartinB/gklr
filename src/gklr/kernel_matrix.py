@@ -1,6 +1,6 @@
 """GKLR kernel_matrix module."""
 from lib2to3.pgen2.token import OP
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
 import pandas as pd
 from sklearn.kernel_approximation import Nystroem
@@ -178,7 +178,9 @@ class KernelMatrix():
             A numpy array with the choices per observation.
         """
         if self.choices is None:
-            raise RuntimeError("ERROR. Kernel matrix not initialized.")
+            msg = "ERROR. Kernel matrix not initialized."
+            logger_error(msg)
+            raise RuntimeError(msg)
         return self.choices.to_numpy()
 
     def get_choices_indices(self) -> np.ndarray:
@@ -188,7 +190,9 @@ class KernelMatrix():
             A numpy array with the choices per observation as alternative indices.
         """
         if self.choices is None:
-            raise RuntimeError("ERROR. Kernel matrix not initialized.")
+            msg = "ERROR. Kernel matrix not initialized."
+            logger_error(msg)
+            raise RuntimeError(msg)
         if self.choices_indices is None:
             choice_indices = []
             for choice in self.choices.to_list():
@@ -214,7 +218,7 @@ class KernelMatrix():
     def get_K(self,
               alt: Optional[int] = None,
               index: Optional[int] = None
-    ) -> np.ndarray:
+    ) -> Union[np.ndarray, Dict[int, np.ndarray]]:
         """Returns the kernel matrix for all the alternatives, for alternative `alt`, or the matrix at index `index`.
 
         Args:
@@ -224,25 +228,51 @@ class KernelMatrix():
         Returns:
             The kernel matrix for all the alternatives, for alternative `alt`, or the matrix at index `index`.
         """
-        if index is None:
-            if alt is None:
-                return self._K
+        if self._K is None:
+            msg = "ERROR. Kernel matrix not initialized."
+            logger_error(msg)
+            raise RuntimeError(msg)
+            
+        if index is None and alt is None:
+            return self._K
+        elif index is None and alt is not None:
+            if alt in self.alt_to_index.keys():
+                return self._K[self.K_per_alternative[self.alt_to_index[alt]]]
             else:
-                if alt in self.alt_to_index.keys():
-                    return self._K[self.K_per_alternative[self.alt_to_index[alt]]]
-                else:
-                    msg = (f"ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix ",
-                           "asociated with this alternative.")
-                    logger_error(msg)
-                    raise ValueError(msg)
+                msg = (f"ERROR. Alternative `alt` = {alt} is not valid alternative. There is no kernel matrix ",
+                        "asociated with this alternative.")
+                logger_error(msg)
+                raise ValueError(msg)
+        elif index is not None and alt is None:
+            if index in self.K_per_alternative.values():
+                return self._K[self.K_per_alternative[index]]
+            else:
+                msg = (f"ERROR. Index `index` = {index} is not valid index. There is no kernel matrix ",
+                        "with this index.")
+                logger_error(msg)
+                raise ValueError(msg)
         else:
-            return self._K[self.K_per_alternative[index]]
+            msg = (f"ERROR. The arguments `alt` and `index` cannot be used at the same time.")
+            logger_error(msg)
+            raise ValueError(msg)
 
-    def dot(self, A, index=0):
+    def dot(self, A: np.ndarray, index: int = 0) -> np.ndarray:
         """Implements the dot product of the kernel matrix and numpy array A.
+
+        Implements the matrix multiplication K ∙ A, where K is the kernel matrix 
+        and A is a numpy array given as argument.
+
+        Args:
+            A: Numpy array to be multiplied by the kernel matrix.
+            index: Index of the kernel matrix to be used.
+
+        Returns:
+            The dot product of the kernel matrix and `A`.
         """
+        K = self.get_K(index=index)
+        assert isinstance(K, np.ndarray)
         if self.nystrom:
-            B = self.get_K(index=index).dot(self.get_K(index=index).T.dot(A))
+            B = K.dot(K.T.dot(A))
         else:
-            B = self.get_K(index=index).dot(A)
+            B = K.dot(A)
         return B
