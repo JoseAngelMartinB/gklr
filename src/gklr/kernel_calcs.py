@@ -1,5 +1,5 @@
 """GKLR kernel_calcs module."""
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -21,10 +21,10 @@ class KernelCalcs(Calcs):
 
     def calc_probabilities(self, alpha: np.ndarray) -> np.ndarray:
         """Calculate the probabilities for each alternative.
-        
-        Obtain the probabilities for each alternative for each row of the 
+
+        Obtain the probabilities for each alternative for each row of the
         dataset.
-        
+
         Args:
             alpha: The vector of parameters.
 
@@ -38,12 +38,12 @@ class KernelCalcs(Calcs):
         P = self.calc_P(Y, G, G_j)
         return P
 
-    def log_likelihood(self, 
+    def log_likelihood(self,
                        alpha: np.ndarray,
                        return_P: bool = False
     ) -> Tuple[float, Optional[np.ndarray]]:
         """Calculate the log-likelihood of the KLR model for the given parameters.
-        
+
         Args:
             alpha: The vector of parameters.
             return_P: If True, it also returns the matrix of probabilities of each
@@ -63,16 +63,16 @@ class KernelCalcs(Calcs):
             return log_likelihood, None
 
     def log_likelihood_and_gradient(self,
-                                    alpha: np.ndarray, 
-                                    pmle: Optional[str] = None, 
+                                    alpha: np.ndarray,
+                                    pmle: Optional[str] = None,
                                     pmle_lambda: float = 0
     ) -> Tuple[float, np.ndarray]:
-        """Calculate the log-likelihood and its gradient for the KLR model for 
+        """Calculate the log-likelihood of the KLR model and its gradient for
         the given parameters.
 
         Args:
             alpha: The vector of parameters.
-            pmle: It specifies the type of penalization for performing a penalized 
+            pmle: It specifies the type of penalization for performing a penalized
                 maximum likelihood estimation.  Default: None.
             pmle_lambda: The lambda parameter for the penalized maximum likelihood.
                  Default: 0.
@@ -131,15 +131,15 @@ class KernelCalcs(Calcs):
 
         Returns:
             A tuple with the auxiliary matrix `G` and its derivative.
-        """ 
+        """
         # Implementation for KLR
         G = np.sum(Y, axis=1).reshape((Y.shape[0], 1))
         # Compute G_j, the derivative of G with respecto to the variable Y_j
         G_j = np.ones_like(Y)
         return (G, G_j)
 
-    def tikhonov_penalty(self, 
-                         alpha: np.ndarray, 
+    def tikhonov_penalty(self,
+                         alpha: np.ndarray,
                          pmle_lambda: float
     ) -> float:
         """Calculate the Tikhonov penalty for the given parameters.
@@ -158,8 +158,8 @@ class KernelCalcs(Calcs):
         penalty = pmle_lambda * penalty
         return penalty
 
-    def tikhonov_penalty_gradient(self, 
-                                  alpha: np.ndarray, 
+    def tikhonov_penalty_gradient(self,
+                                  alpha: np.ndarray,
                                   pmle_lambda: float
     ) -> np.ndarray:
         """Calculate the gradient of the Tikhonov penalty for the given parameters.
