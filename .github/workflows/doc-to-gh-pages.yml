@@ -28,7 +28,11 @@ jobs:
       - name: Install dependencies
         run: python3 -m pip install tox
 
-      - run: tox -r -e docs
+      - name: Generate documentation
+        run: tox -r -e docs
+
+      - name: Check documentation
+        run: ls -Rla docs
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
@@ -36,6 +40,6 @@ jobs:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
           external_repository: JoseAngelMartinB/gklr_docs
           publish_branch: main
-          publish_dir: .
+          publish_dir: ./docs/_build/html
           cname: gklr.joseangelmartin.com
           enable_jekyll: false
