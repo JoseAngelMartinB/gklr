@@ -120,8 +120,8 @@ source_suffix = [".rst", ".md"]
 master_doc = "index"
 
 # General information about the project.
-project = "gklr"
-copyright = "2021, José Ángel Martín Baos"
+project = "GKLR"
+copyright = "2022, José Ángel Martín Baos"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -193,6 +193,14 @@ html_theme = "sphinx_rtd_theme"
 # documentation.
 html_theme_options = {
 
+}
+
+html_context = {
+    "display_github": True, # Integrate GitHub
+    "github_user": "JoseAngelMartinB", # Username
+    "github_repo": "gklr", # Repo name
+    "github_version": "main", # Version
+    "conf_py_path": "/docs/", # Path in the checkout to the docs root
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
