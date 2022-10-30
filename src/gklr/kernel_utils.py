@@ -15,7 +15,13 @@ valid_kernel_list = kernel_type_to_class.keys()
 valid_kernel_params = ["gamma"]
 
 def convert_size_bytes_to_human_readable(size_in_bytes):
-    """ Convert the size from bytes to other units like KB, MB or GB"""
+    """ Convert the size from bytes to other units like KB, MB or GB.
+    
+    Args:
+        size_in_bytes: Size in bytes.
+        
+    Returns:
+        A string with the size in bytes, KB, MB or GB."""
     if size_in_bytes < 1024:
         return (size_in_bytes, "Bytes")
     elif size_in_bytes < (1024*1024):
@@ -26,7 +32,7 @@ def convert_size_bytes_to_human_readable(size_in_bytes):
         return (np.round(size_in_bytes/(1024*1024*1024), 2), "GB")
 
 def elapsed_time_to_str(elapsed_time_sec: float) -> str:
-    """Convert the elapsed time in seconds to a string with the appropriate units
+    """Convert the elapsed time in seconds to a string with the appropriate units.
     
     Args:
         elapsed_time_sec: Elapsed time in seconds

@@ -1,21 +1,63 @@
 """GKLR kernel_estimator module."""
+from cmath import log
+from typing import Optional, Tuple, Any, Dict
+
+from asyncio.log import logger
 import sys
 
+import numpy as np
+
+from .kernel_calcs import KernelCalcs
 from .logger import *
 from .kernel_utils import *
 from .estimation import Estimation
 
 class KernelEstimator(Estimation):
-    def __init__(self, calcs, pmle, pmle_lambda, method, verbose):
+    """Estimation object for the Kernel Logistic Regression (KLR) model."""
+
+    def __init__(self,
+                 calcs: KernelCalcs,
+                 pmle: Optional[str] = None,
+                 pmle_lambda: float = 0.0,
+                 method: str = "L-BFGS-B",
+                 verbose: int = 1,
+    ) -> None:
+        """Constructor.
+
+        Args:
+            calcs: Calcs object.
+            pmle: Indicates the penalization method for the penalized maximum
+                likelihood estimation. If 'None' a maximum likelihood estimation
+                without penalization is performed. Default: None.
+            pmle_lambda: The value of the regularization parameter for the PMLE
+                method. Default: 0.0.
+            method: The optimization method. Default: "L-BFGS-B".
+            verbose: Indicates the level of verbosity of the function. If 0, no
+                output will be printed. If 1, basic information about the
+                estimation procedure will be printed. If 2, the information
+                about each iteration will be printed. Default: 1.
+        """
         if pmle not in VALID_PMLE_METHODS:
-            raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`. Valid methods "
-                             "are: {valid_methods}".format(pmle=pmle, valid_methods=VALID_PMLE_METHODS))
+            msg = (f"'pmle' = {pmle} is not a valid value for the penalization"
+                   f" method. Valid methods are: {VALID_PMLE_METHODS}.")
+            logger_error(msg)
+            raise ValueError(msg)
 
         super().__init__(calcs, pmle, pmle_lambda, method, verbose)
+        self.calcs = calcs
         self.alpha_shape = (calcs.K.get_num_cols(), calcs.K.get_num_alternatives())
 
-    def objective_function(self, params):
-        #time_ini = time.time_ns()  # DEBUG
+    def objective_function(self,
+                           params: np.ndarray,
+    ) -> Tuple[float, np.ndarray]:
+        """Objective function for the Kernel Logistic Regression (KLR) model.
+
+        Args:
+            params: The model parameters.
+
+        Returns:
+            A tuple with the value of the objective function and its gradient.
+        """
         # Convert params to alfas and reshape them as a column vector
         alpha = params.reshape(self.alpha_shape)
 
@@ -29,20 +71,29 @@ class KernelEstimator(Estimation):
         elif self.pmle == "Tikhonov":
             penalty = self.calcs.tikhonov_penalty(alpha, self.pmle_lambda)
         else:
-            raise ValueError("ERROR. {pmle} is not a valid value for the penalization method `pmle`.".format(
-                pmle = self.pmle))
+            msg = f"'pmle' = {self.pmle} is not a valid value for the penalization."
+            logger_error(msg)
+            raise ValueError(msg)
 
         if self.verbose >= 2:
-            print("Current objective function: {fun:,.4f}".format(fun=-ll+penalty), end = "\r")
+            print(f"Current objective function: {-ll+penalty:,.4f}", end = "\r")
             sys.stdout.flush()
-        #print(params, end="\r") #DEBUG:
-        #print((time.time_ns() - time_ini) / (10 ** 9))  # convert to floating-point seconds) # DEBUG
         return (-ll + penalty, gradient)
 
-    def minimize(self, params):
-        #DEBUG: tracker = SummaryTracker()
-        results = super().minimize(params)
-        # Convert params to alfas and reshape them as a column vector
+    def minimize(self,
+                 params: np.ndarray,
+                 **kargs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Minimize the objective function.
+
+        Args:
+            params: The initial values of the model parameters.
+            **kargs: Additional arguments for the minimization function.
+
+        Returns:
+            A dict with the results of the optimization.
+        """
+        results = super().minimize(params, **kargs)
+        # Convert params to alpha np vector and reshape them as a column vector
         results["alpha"] = results["params"].reshape(self.alpha_shape)
-        #DEBUG: tracker.print_diff()
         return results

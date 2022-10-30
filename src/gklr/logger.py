@@ -1,6 +1,4 @@
 """GKLR logger module."""
-from typing import Optional
-
 import logging
 import os
 
@@ -25,31 +23,66 @@ CRITICAL = logging.CRITICAL
 
 
 def logger_set_level(level: int) -> None:
-    """Set the level of the logger."""
+    """Set the level of the logger.
+
+    Args:
+        level: The level desired for the logger.
+    """
     main_logger.setLevel(level)
 
 
 def logger_get_level() -> int:
-    """Gets the level of the logger."""
+    """Gets the level of the logger.
+    
+    Returns:
+        The current level of the logger."""
     return main_logger.getEffectiveLevel()
 
 
-def _get_console_handler():
+def _get_console_handler() -> logging.StreamHandler:
+    """Create a console handler for the logger.
+
+    Returns:
+        The console handler.
+    """
     handler = logging.StreamHandler()
     handler.setFormatter(default_formatter)
     return handler
 
 
-def _get_file_handler(logPath, fileName):
+def _get_file_handler(logPath: str,
+                      fileName: str,
+) -> logging.FileHandler:
+    """Create a file handler for the logger.
+
+    Args:
+        logPath: The path to the log file.
+        fileName: The name of the log file.
+
+    Returns:
+        The file handler instance.
+    """
     handler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName), 
         mode="w")
     handler.setFormatter(default_formatter)
     return handler
 
 
-def get_default_logger(name: str, level: int, logPath: Optional[str] = ".", 
-    fileName: Optional[str] = "gklr",
+def get_default_logger(name: str,
+                       level: int,
+                       logPath: str = ".",
+                       fileName: str = "gklr",
 ) -> logging.Logger:
+    """Create a logger with a default configuration.
+
+    Args:
+        name: The name of the logger.
+        level: The level of the logger.
+        logPath: The path to the log file. Default: '.'.
+        fileName: The name of the log file. Default: 'gklr'.
+
+    Returns:
+        The logger instance."""
     logger = logging.getLogger(name)
     #logger.addHandler(_get_console_handler())
     logger.addHandler(_get_file_handler(logPath, fileName))

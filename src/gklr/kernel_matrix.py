@@ -11,6 +11,7 @@ from .kernel_utils import *
 
 class KernelMatrix():
     """Class to store the kernel matrix and its associated data."""
+    
     def __init__(self,
                  X: pd.DataFrame,
                  choice_column: str,

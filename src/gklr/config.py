@@ -6,21 +6,26 @@ import sys
 import multiprocessing
 import numpy as np
 
-
 from .logger import *
 
 __all__ = ["Config"]
 
-
 def init_environment_variables(num_cores: Optional[int] = None):
-    """Initializes the environment variables."""
+    """Initializes the environment variables.
+    
+    Args:
+        num_cores: The number of cores to use. If None, it uses all the cores
+            available. Default: None.
+    """
     os.environ["MKL_NUM_THREADS"] = str(num_cores)
     os.environ["OMP_NUM_THREADS"] = str(num_cores)
 
-
 class Config:
+    """Configuration class for the GKLR package.
+    
+    This class stores the configuration and hyperparameters for the GKLR package."""
     def __init__(self):
-        """Class object to store config and hyperparameters."""
+        """Constructor."""
         from gklr import __version__
         self.info = {
             "python_version": sys.version,
@@ -83,7 +88,9 @@ class Config:
             raise ValueError(msg)
 
     def check_values(self):
-        """Checks validity of hyperparameter values."""
+        """Checks validity of hyperparameter values. Raises an error if any
+        of the hyperparameters is not valid.
+        """
         assert isinstance(self["num_cores"], (int, np.integer))
         assert isinstance(self["kernel_params"]["gamma"], float)
         assert isinstance(self["nystrom"], bool)

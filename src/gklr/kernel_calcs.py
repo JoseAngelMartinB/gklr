@@ -10,7 +10,7 @@ from .calcs import Calcs
 
 class KernelCalcs(Calcs):
     """Main calculations for the Kernel Logistic Regression (KLR) model."""
-
+    
     def __init__(self, K: KernelMatrix) -> None:
         """Constructor.
 
