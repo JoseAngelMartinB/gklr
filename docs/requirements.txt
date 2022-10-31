@@ -6,6 +6,6 @@ sphinx>=3.2.1
 sphinx_rtd_theme
 numpy>=1.15.0
 scipy
-pandas
+pandas>=0.16.2
 scikit-learn
 pympler
