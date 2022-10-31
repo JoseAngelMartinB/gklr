@@ -33,5 +33,4 @@ There are no known issues at this moment.
 
 
 ## License
-
-BSD 3-Clause License
+MIT license
