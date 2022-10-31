@@ -1,5 +1,6 @@
 # GKLR
 
+Generalized Kernel Logistic Regression.
 Add a short description here!
 
 
@@ -20,6 +21,7 @@ Add a short description here!
 * [License](license)
 * [Authors](authors)
 * [Changelog](changelog)
+* [Source code (Github)](https://github.com/JoseAngelMartinB/gklr)
 * [Module Reference](api/modules)
 
 

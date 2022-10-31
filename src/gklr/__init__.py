@@ -1,7 +1,11 @@
-import sys
+"""GKLR package"""
+
+from .logger import *
+from .gklr import *
+
+__author__ = """José Ángel Martín Baos"""
 
 if sys.version_info[:2] >= (3, 8):
-    # TODO: Import directly (no need for conditional) when `python_requires = >= 3.8`
     from importlib.metadata import PackageNotFoundError, version  # pragma: no cover
 else:
     from importlib_metadata import PackageNotFoundError, version  # pragma: no cover
@@ -15,4 +19,12 @@ except PackageNotFoundError:  # pragma: no cover
 finally:
     del version, PackageNotFoundError
 
-from .gklr import *
+logger_debug("GKLR module initialized.")  
+
+def display_info():
+    """Display GKLR module information."""
+    print("\n" + "-"*34 + " GKLR info " + "-"*35)
+    print(__doc__)
+    print("Version: " + __version__)
+    print("Author: " + __author__)
+    print("-"*80)

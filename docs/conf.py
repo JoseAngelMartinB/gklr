@@ -10,6 +10,7 @@
 import os
 import sys
 import shutil
+import sphinx_rtd_theme
 
 # -- Path setup --------------------------------------------------------------
 
@@ -72,10 +73,21 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinx_rtd_theme",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
+
+
+# Configure autodoc
+# Show typehints as content of the function or method The typehints of 
+# overloaded functions or methods will still be represented in the signature.
+autodoc_typehints = "description" 
+
+
+# Set both the class’ and the __init__ method’s docstring are concatenated and inserted.
+autoclass_content = 'both'
 
 
 # Configure AutoStructify
@@ -108,8 +120,8 @@ source_suffix = [".rst", ".md"]
 master_doc = "index"
 
 # General information about the project.
-project = "gklr"
-copyright = "2021, José Ángel Martín Baos"
+project = "GKLR"
+copyright = "2022, José Ángel Martín Baos"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -174,14 +186,21 @@ todo_emit_warnings = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "alabaster"
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    "sidebar_width": "300px",
-    "page_width": "1200px"
+
+}
+
+html_context = {
+    "display_github": True, # Integrate GitHub
+    "github_user": "JoseAngelMartinB", # Username
+    "github_repo": "gklr", # Repo name
+    "github_version": "main", # Version
+    "conf_py_path": "/docs/", # Path in the checkout to the docs root
 }
 
 # Add any paths that contain custom themes here, relative to this directory.

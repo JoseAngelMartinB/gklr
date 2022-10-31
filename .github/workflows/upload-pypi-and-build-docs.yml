@@ -1,0 +1,59 @@
+# This workflows will upload a Python Package using Twine when a release is created
+# and then publish the documentation to gklr.joseangelmartin.com
+
+name: Upload GKLR package to pypi and publish documentation to Github pages
+
+on:
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # avoids shallow checkout as needed by setuptools-scm
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Upgrade pip
+        run: |
+          # install pip=>20.1 to use "pip cache dir"
+          python3 -m pip install --upgrade pip
+
+      - name: Get pip cache dir
+        id: pip-cache
+        run: echo "::set-output name=dir::$(pip cache dir)"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip setuptools tox
+
+      - name: Build Project and Publish to test repository
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TEST_API_TOKEN }}
+        run: |
+          python -m tox -e clean,build
+          python -m tox -e publish -- --verbose --repository testpypi
+
+      - name: Generate Sphinx documentation
+        run: python -m tox -e docs
+
+      - name: Check the generated documentation files
+        run: ls -Rla docs
+
+      - name: Deploy documentation webpage
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          external_repository: JoseAngelMartinB/gklr_docs
+          publish_branch: main
+          publish_dir: ./docs/_build/html
+          cname: gklr.joseangelmartin.com
+          enable_jekyll: false

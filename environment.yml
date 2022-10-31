@@ -24,6 +24,7 @@ dependencies:
 
   # DEVELOPMENT ONLY PACKAGES (could also be kept in a separate environment file)
   - jupyterlab
+  - pylint
   - pytest
   - pytest-cov
   - pytest-xdist
