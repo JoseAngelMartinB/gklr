@@ -43,7 +43,7 @@ jobs:
           python -m tox -e publish -- --verbose --repository testpypi
 
       - name: Generate Sphinx documentation
-        run: tox -r -e docs
+        run: python -m tox -e docs
 
       - name: Check the generated documentation files
         run: ls -Rla docs
