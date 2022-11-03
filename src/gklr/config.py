@@ -92,10 +92,10 @@ class Config:
         of the hyperparameters is not valid.
         """
         assert isinstance(self["num_cores"], (int, np.integer))
-        assert isinstance(self["kernel_params"]["gamma"], float)
+        assert isinstance(self["kernel_params"]["gamma"], (float, np.floating))
         assert isinstance(self["nystrom"], bool)
-        assert self["compression"] is None or isinstance(self["compression"], float) \
-            or isinstance(self["compression"], int)
+        assert self["compression"] is None or isinstance(self["compression"], (float, np.floating)) \
+            or isinstance(self["compression"], (int, np.integer))
         if self["compression"] > 1 and (self["compression"] != int(self["compression"])):
             msg = ("When 'compression' hyperparameter is > 1, it must "
                     "be an integer representing the number of "
