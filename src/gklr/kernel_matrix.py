@@ -118,7 +118,14 @@ class KernelMatrix():
 
                 # Create the Kernel Matrix for alternative i
                 if self.nystrom:
-                    nystrom_components = int(X_alt.shape[0] * self.nystrom_compression)
+                    if self.nystrom_compression <= 1 and self.nystrom_compression > 0:
+                        nystrom_components = int(X_alt.shape[0] * self.nystrom_compression)
+                    elif self.nystrom_compression > 1:
+                        nystrom_components = int(self.nystrom_compression)
+                    else:
+                        msg = "'compresion' hyperparameter must be a positive number."
+                        logger_error(msg)
+                        raise ValueError(msg)
                     nystrom_kernel = Nystroem(kernel=kernel_type, n_components=nystrom_components,
                         n_jobs = self._config["n_jobs"], **self._config["kernel_params"])
                     K_aux = nystrom_kernel.fit_transform(X_alt)
