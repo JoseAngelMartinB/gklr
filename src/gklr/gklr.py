@@ -17,7 +17,7 @@ from .kernel_estimator import KernelEstimator
 from .kernel_calcs import KernelCalcs
 from .kernel_matrix import KernelMatrix
 
-valid_gklr_params = ["n_jobs", "nystrom", "compression", "nystrom_sampling"]
+valid_gklr_params = ["n_jobs", "nystrom", "compression", "ridge_leverage_lambda", "nystrom_sampling"]
 
 class KernelModel:
     """Main class for GKLR models."""

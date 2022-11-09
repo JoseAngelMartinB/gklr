@@ -1,7 +1,8 @@
 from typing import Optional, Any, Dict, List, Union
 
+import math
+import numpy as np
 import pandas as pd
-#from sklearn.kernel_approximation import Nystroem
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array
 from sklearn.metrics.pairwise import pairwise_kernels
@@ -11,6 +12,8 @@ from sklearn.cluster import KMeans, MiniBatchKMeans
 from .logger import *
 from .config import Config
 from .kernel_utils import *
+
+__all__ = ['KernelMatrix']
 
 class KernelMatrix():
     """Class to store the kernel matrix and its associated data."""
@@ -303,6 +306,7 @@ class Nystroem():
                  kernel_params = None,
                  n_components = 100,
                  sampling = "uniform",
+                 ridge_leverage_lambda = 1,
                  random_state = None,
                  n_jobs = None,
     ):
@@ -315,6 +319,7 @@ class Nystroem():
         self.random_state = random_state
         self.n_jobs = n_jobs
         self.sampling = sampling
+        self.ridge_leverage_lambda = ridge_leverage_lambda
 
     def fit_transform(self,
                       X,
@@ -341,7 +346,6 @@ class Nystroem():
 
         # get basis vectors
         if self.n_components > n_samples:
-            # XXX should we just bail?
             n_components = n_samples
             msg = ("n_components > n_samples. This is not possible.\n"
                    "n_components was set to n_samples, which results"
@@ -360,10 +364,16 @@ class Nystroem():
             kmeans = MiniBatchKMeans(n_clusters=n_components, random_state=rnd, batch_size=n_components*5, max_iter=100)
             kmeans.fit_predict(X)
             basis = kmeans.cluster_centers_
+        elif self.sampling == "DAC-ridge-leverage":
+            approx_leverage_scores = self.DAC_ridge_leverage(X, self.ridge_leverage_lambda, n_components)
+            # Sample n_components elements from data proportionally to these scores
+            p = approx_leverage_scores/np.sum(approx_leverage_scores)  
+            selected = np.random.choice(X.shape[0], size=n_components, replace=False, p=p)  
+            basis = X[selected]
         else:
-            raise ValueError(
-                "ERROR. {nystrom_sampling} is not a valid sampling strategy for Nyström method.".format(
-                    nystrom_sampling=self.sampling))
+            msg = "{self.sampling} is not a valid sampling strategy for Nyström method."
+            logger_error(msg)
+            raise ValueError(msg)
 
         basis_kernel = pairwise_kernels(basis, metric=self.kernel,
                                         filter_params=True,
@@ -404,3 +414,47 @@ class Nystroem():
         if params is None:
             params = {}
         return params
+
+    def DAC_ridge_leverage(self,
+                           X,
+                           lambda_,
+                           sample_size,
+    ):
+        """DAC ridge-leverage algorithm for Nyström approximation.
+
+        This function computes an approximation of the ridge leverage score, using a divide and conquer strategy.
+        Reference: Farah Cherfaoui, Hachem Kadri, Liva Ralaivola.  Scalable ridge Leverage score sampling for the 
+        Nyström method. ICASSP, May 2022, Singapour, Singapore.
+
+        Args:
+            X: numpy array of size (n, d) where n is the number of data and d number of features.
+            lambda_: regularisation term.
+            sample_size: size of sub-matrix.
+        """
+
+        if (lambda_ < 0):
+            msg = "'lambda_' parameter of DAC_ridge_leverage have to be positive."
+            logger_error(msg)
+            raise ValueError(msg)
+
+        n = X.shape[0]
+        ind = np.arange(n)
+        np.random.shuffle(ind)
+        approximated_ls = np.zeros((n))
+
+        for l in range(0, math.ceil(n/sample_size)):
+            # Sample a subset of data
+            true_sample_size = min(sample_size, n - l*sample_size)
+            temp_ind = ind[l*sample_size: l*sample_size + true_sample_size]
+            
+            # compute the kernel matrix using the subset of selected data
+            K_S = pairwise_kernels(X[temp_ind], X[temp_ind],
+                                   metric=self.kernel,
+                                   filter_params=True,
+                                   n_jobs=self.n_jobs,
+                                   **self._get_kernel_params())
+
+            # compute the approximated leverage score by inverting the small matrix
+            approximated_ls[temp_ind] = np.sum(K_S * np.linalg.inv(K_S + lambda_ * np.eye(true_sample_size)) , axis = 1)
+
+        return approximated_ls
