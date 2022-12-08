@@ -37,6 +37,8 @@ class Config:
             "kernel": "rbf",
             "kernel_params": {"gamma": 1.0},
             "nystrom": False,
+            "nystrom_sampling": "uniform",
+            "ridge_leverage_lambda": 1,
             "compression": None,
         }
         init_environment_variables(self.hyperparameters["num_cores"])
