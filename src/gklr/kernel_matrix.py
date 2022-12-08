@@ -1,3 +1,4 @@
+"""GKLR kernel_matrix module."""
 from typing import Optional, Any, Dict, List, Union
 
 import math
