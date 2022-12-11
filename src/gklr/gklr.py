@@ -271,6 +271,7 @@ class KernelModel:
             pmle: str = "Tikhonov",
             pmle_lambda: float = 0,
             method: str = "L-BFGS-B",
+            options: Optional[Dict[str, Any]] = None,
             verbose: int = 1,
     ) -> None:
         """Fit the kernel model.
@@ -282,6 +283,7 @@ class KernelModel:
             pmle: Penalization method. Default: None.
             pmle_lambda: Parameter for the penalization method. Default: 0
             method: Optimization method. Default: "L-BFGS-B".
+            options: Options for the optimization method. Default: None.
             verbose: Indicates the level of verbosity of the function. If 0, no output will be printed. If 1, basic
                 information about the time spent and the Log-likelihood value will be displayed. Default: 1.
         """
@@ -319,7 +321,7 @@ class KernelModel:
 
         # Perform the estimation
         start_time = time.time()
-        self.results = estimator.minimize(init_parms.reshape(self.n_parameters))
+        self.results = estimator.minimize(init_parms.reshape(self.n_parameters), options=options)
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 

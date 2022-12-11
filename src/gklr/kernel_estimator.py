@@ -50,7 +50,8 @@ class KernelEstimator(Estimation):
     def objective_function(self,
                            params: np.ndarray,
     ) -> Tuple[float, np.ndarray]:
-        """Objective function for the Kernel Logistic Regression (KLR) model.
+        """Compute the objective function for the Kernel Logistic Regression 
+        (KLR) model and its gradient.
 
         Args:
             params: The model parameters.
@@ -82,18 +83,23 @@ class KernelEstimator(Estimation):
 
     def minimize(self,
                  params: np.ndarray,
+                 loss_tol: float = 1e-06,
+                 options: Optional[Dict[str, Any]] = None,
                  **kargs: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Minimize the objective function.
 
         Args:
             params: The initial values of the model parameters.
+            loss_tol: The tolerance for the loss function. Default: 1e-06.
+            options: A dict with advance options for the optimization method. 
+                Default: None.
             **kargs: Additional arguments for the minimization function.
 
         Returns:
             A dict with the results of the optimization.
         """
-        results = super().minimize(params, **kargs)
+        results = super().minimize(params, loss_tol, options, **kargs)
         # Convert params to alpha np vector and reshape them as a column vector
         results["alpha"] = results["params"].reshape(self.alpha_shape)
         return results
