@@ -76,6 +76,9 @@ class KernelEstimator(Estimation):
             logger_error(msg)
             raise ValueError(msg)
 
+        self.history["loss"].append(-ll + penalty)
+        self.history["gradient"].append(gradient)
+
         if self.verbose >= 2:
             print(f"Current objective function: {-ll+penalty:,.4f}", end = "\r")
             sys.stdout.flush()

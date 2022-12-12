@@ -329,12 +329,14 @@ class KernelModel:
         mcfadden_r2 = 1 - final_log_likelihood / log_likelihood_at_zero  # TODO: Implement a method to compute metrics
 
         # Store post-estimation information
+        self.results["initial_log_likelihood"] = initial_log_likelihood
         self.results["final_log_likelihood"] = final_log_likelihood
         self.results["elapsed_time"] = elapsed_time_sec
         self.results["mcfadden_r2"] = mcfadden_r2
         self.results["pmle"] = pmle
         self.results["pmle_lamda"] = pmle_lambda
         self.results["method"] = method
+        self.results["history"] = estimator.history
 
         if verbose >= 1:
             print("-------------------------------------------------------------------------\n"
@@ -344,6 +346,39 @@ class KernelModel:
                                                   final_log_likelihood=final_log_likelihood,
                                                   r2 = mcfadden_r2))
             sys.stdout.flush()
+
+        return None
+
+    def summary(self) -> None:
+        """Print a summary of the estimation results."""
+        if self.results is None:
+            msg = "The model has not been estimated yet. Use fit() to estimate it."
+            logger_error(msg)
+            raise RuntimeError(msg)
+
+        print("-------------------------------------------------------------------------\n"
+              "GKLR Kernel Model summary\n"
+              "-------------------------------------------------------------------------\n"
+              "Optimization method: {method}\n"
+              "optimization success: {success}\n"
+              "Optimization message: {message}\n"
+              "Penalization: {pmle}\n"
+              "Penalization parameter: {pmle_lambda}\n"
+              "Initial log-likelihood: {initial_log_likelihood:,.4f}\n"
+              "Final log-likelihood: {final_log_likelihood:,.4f}\n"
+              "McFadden R^2: {r2:.4f}\n"
+              "Elapsed time: {elapsed_time}\n"
+              "-------------------------------------------------------------------------".format(
+            method=self.results["method"],
+            success=self.results["success"],
+            message=self.results["message"],
+            pmle=self.results["pmle"],
+            pmle_lambda=self.results["pmle_lamda"],
+            initial_log_likelihood=self.results["initial_log_likelihood"],
+            final_log_likelihood=self.results["final_log_likelihood"],
+            r2=self.results["mcfadden_r2"],
+            elapsed_time=elapsed_time_to_str(self.results["elapsed_time"])))
+        sys.stdout.flush()
 
         return None
 
