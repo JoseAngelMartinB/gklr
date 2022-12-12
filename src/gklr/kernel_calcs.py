@@ -30,7 +30,9 @@ class KernelCalcs(Calcs):
 
         Returns:
             A matrix of probabilities for each alternative for each row of the
-                dataset.
+                dataset. Each column corresponds to an alternative and each row
+                to a row of the dataset. The sum of the probabilities for each
+                row is 1.
         """
         f = self.calc_f(alpha)
         Y = self.calc_Y(f)
@@ -40,27 +42,41 @@ class KernelCalcs(Calcs):
 
     def log_likelihood(self,
                        alpha: np.ndarray,
-                       return_P: bool = False
-    ) -> Tuple[float, Optional[np.ndarray]]:
+                       P: Optional[np.ndarray] = None,
+                       choice_indices: Optional[np.ndarray] = None,
+    ) -> float:
         """Calculate the log-likelihood of the KLR model for the given parameters.
 
         Args:
             alpha: The vector of parameters.
-            return_P: If True, it also returns the matrix of probabilities of each
-                alternative for each row of the dataset. Default: False.
+            P: The matrix of probabilities of each alternative for each row of 
+                the dataset. If None, the probabilities are calculated.
+                Default: None.
 
         Returns:
-            The log-likelihood of the KLR model for the given parameters and, if
-                `return_P` is True, the matrix of probabilities of each alternative
-                for each row of the dataset.
+            The log-likelihood of the KLR model for the given parameters.
         """
-        P = self.calc_probabilities(alpha)
-        log_P = np.log(P)
-        log_likelihood = np.sum(log_P[np.arange(len(log_P)), self.K.get_choices_indices()]) # TODO: .copy)  ??
-        if return_P:
-            return log_likelihood, P
+        if P is None:
+            P = self.calc_probabilities(alpha)
         else:
-            return log_likelihood, None
+            if P.shape != (self.K.get_num_rows(), self.K.get_num_alternatives()):
+                m = (f"P has {P.shape} dimensions, but the dataset has"
+                    f" {self.K.get_num_rows()} rows and {self.K.get_num_alternatives()}"
+                    " alternatives.")
+                logger_error(m)
+                raise ValueError(m)
+        if choice_indices is None:
+            choice_indices = self.K.get_choices_indices()
+        else:
+            if len(choice_indices) != P.shape[0]:
+                m = (f"choice_indices has {len(choice_indices)} elements, but P"
+                    " has {P.shape[0]} rows.")
+                logger_error(m)
+                raise ValueError(m)
+        
+        log_P = np.log(P)
+        log_likelihood = np.sum(log_P[np.arange(len(log_P)), choice_indices]) 
+        return log_likelihood
 
     def log_likelihood_and_gradient(self,
                                     alpha: np.ndarray,
@@ -76,10 +92,15 @@ class KernelCalcs(Calcs):
                 maximum likelihood estimation.  Default: None.
             pmle_lambda: The lambda parameter for the penalized maximum likelihood.
                  Default: 0.
+        
+        Returns:
+            A tuple with the log-likelihood of the KLR model and its gradient for
+                the given parameters.
         """
+        P = self.calc_probabilities(alpha)
+
         # Log-likelihood
-        log_likelihood, P = self.log_likelihood(alpha, return_P=True)
-        assert P is not None # To avoid numpy errors
+        log_likelihood = self.log_likelihood(alpha, P)
 
         # Gradient
         Z = self.K.get_choices_matrix()
@@ -102,7 +123,6 @@ class KernelCalcs(Calcs):
             gradient = np.concatenate((gradient, gradient_alt), axis=1)
 
         gradient = gradient.reshape(self.K.get_num_rows() * self.K.get_num_alternatives())
-
         return (log_likelihood, gradient)
 
     def calc_f(self, alpha: np.ndarray) -> np.ndarray:

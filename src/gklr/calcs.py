@@ -22,7 +22,7 @@ class Calcs(ABC):
         return
 
     @abstractmethod
-    def log_likelihood(self, alpha, return_P):
+    def log_likelihood(self, alpha, P, choice_indices):
         """Calculate the log-likelihood of the model for the given parameters.
         """
         return
@@ -75,6 +75,10 @@ class Calcs(ABC):
 
         Returns:
             The matrix of probabilities for each alternative for each row of the
-                dataset.
+                dataset. Each column corresponds to an alternative and each row
+                to a row of the dataset. The sum of the probabilities for each
+                row is 1.
+
+
         """
         return (Y*G_j)/G
