@@ -305,10 +305,10 @@ class KernelModel:
 
         # Log-likelihood at zero
         alpha_at_0 = np.zeros(self.alpha_shape, dtype=DEFAULT_DTYPE)
-        log_likelihood_at_zero, _ = calcs.log_likelihood(alpha_at_0)
+        log_likelihood_at_zero = calcs.log_likelihood(alpha_at_0)
 
         # Initial log-likelihood
-        initial_log_likelihood, _ = calcs.log_likelihood(init_parms)
+        initial_log_likelihood = calcs.log_likelihood(init_parms)
 
         if verbose >= 1:
             print("The estimation is going to start...\n"
@@ -325,7 +325,7 @@ class KernelModel:
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 
-        final_log_likelihood, _ = calcs.log_likelihood(self.results["alpha"])
+        final_log_likelihood = calcs.log_likelihood(self.results["alpha"])
         mcfadden_r2 = 1 - final_log_likelihood / log_likelihood_at_zero  # TODO: Implement a method to compute metrics
 
         # Store post-estimation information

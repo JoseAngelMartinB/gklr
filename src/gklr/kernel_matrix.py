@@ -66,6 +66,16 @@ class KernelMatrix():
     ) -> None:
         """Construct and store the kernel matrix K.
 
+        The kernel matrix K is constructed using the training dataset `X` and the
+        test dataset `Z`. The kernel matrix is stored in the attribute `self._K`.
+        The kernel matrix dimensions are (n_rows, n_cols), where n_rows is the
+        number of rows of the training dataset `X` and n_cols is the number of
+        rows of the test dataset `Z`. If `Z` is not provided, then `X` is used
+        as the test dataset and n_cols = n_rows.
+        If Nystrom is used, the dimension of the kernel matrix is reduced to
+        (n_rows, nystrom_components), where nystrom_components is the number of
+        components (or landmarks) used for the Nystrom approximation.
+
         Args:
             X: Train dataset stored in a pandas DataFrame.
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
@@ -282,11 +292,13 @@ class KernelMatrix():
         and A is a numpy array given as argument.
 
         Args:
-            A: Numpy array to be multiplied by the kernel matrix.
+            A: Numpy array to be multiplied by the kernel matrix. 
+                Shape (self.get_num_cols(), •)
             index: Index of the kernel matrix to be used.
 
         Returns:
             The dot product of the kernel matrix and `A`.
+                Shape (self.get_num_rows(), •)
         """
         K = self.get_K(index=index)
         assert isinstance(K, np.ndarray)
