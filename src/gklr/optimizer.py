@@ -96,14 +96,25 @@ class Optimizer():
                       gtol: float = 1e-06, 
                       startiter: int = 0,
                       maxiter: int = 1000,
+                      momentum: float = 0.0,
                       **kwards,
     ) -> Dict[str, Any]:
         """Minimize the objective function using the stochastic gradient descent method.
         """
-        
-        # TODO: implement the stochastic gradient descent method
-        #raise NotImplementedError("The stochastic gradient descent method is not implemented yet.")
 
+        # Checking errors
+        if not callable(fun):
+            m = "The objective function must be callable."
+            logger_error(m)
+            raise ValueError(m)
+        if learning_rate <= 0:
+            m = "The learning rate must be greater than zero."
+            logger_error(m)
+            raise ValueError(m)
+        if gtol <= 0:
+            m = "The tolerance must be greater than zero."
+            logger_error(m)
+            raise ValueError(m)
         if startiter < 0:
             m = "The iteration number must be non-negative."
             logger_error(m)
@@ -112,29 +123,28 @@ class Optimizer():
             m = "The maximum number of iterations must be greater than zero."
             logger_error(m)
             raise ValueError(m)
-
         if jac is None:
             # TODO: Implement the gradient-free optimization method using 2-point approximation
             m = "The gradient of the objective function must be provided."
             logger_error(m)
             raise ValueError(m)
+        if momentum < 0 or momentum > 1:
+            m = "The momentum must be in the range [0, 1]."
+            logger_error(m)
+            raise ValueError(m)
 
         n, = x0.shape
         g = np.zeros((n,), np.float64)
+        velocity = np.zeros((n,), np.float64)
         message = "Optimization terminated successfully."
         success = True
 
         x = x0
-        #velocity = np.zeros_like(x)
-
         i = 0
         for i in range(startiter, startiter + maxiter):
             g = jac(x)
-
-            #velocity = mass * velocity - (1.0 - mass) * g
-            #x = x + learning_rate * velocity
-
-            diff = -learning_rate * g
+            velocity = momentum * velocity - learning_rate * g
+            diff = velocity 
             if np.all(np.abs(diff) <= gtol):
                 break
             x = x + diff
