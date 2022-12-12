@@ -40,6 +40,10 @@ class Estimation(ABC):
         self.pmle_lambda = pmle_lambda
         self.method = method
         self.verbose = verbose
+        self.history = {
+            'loss': [],
+            'gradient': []
+            }
 
     @abstractmethod
     def objective_function(self):
