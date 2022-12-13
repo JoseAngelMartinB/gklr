@@ -64,7 +64,7 @@ class Estimation(ABC):
         """Minimize the objective function.
         
         Args:
-            params: The initial values of the model parameters.
+            params: The initial values of the model parameters. Shape: (n_params,).
             loss_tol: The tolerance for the loss function. Default: 1e-06.
             options: A dict with advance options for the optimization method. 
                 Default: None.

@@ -26,13 +26,13 @@ class KernelCalcs(Calcs):
         dataset.
 
         Args:
-            alpha: The vector of parameters.
+            alpha: The vector of parameters. Shape: (num_cols_kernel_matrix, num_alternatives).
 
         Returns:
             A matrix of probabilities for each alternative for each row of the
                 dataset. Each column corresponds to an alternative and each row
                 to a row of the dataset. The sum of the probabilities for each
-                row is 1.
+                row is 1. Shape: (n_samples, num_alternatives).
         """
         f = self.calc_f(alpha)
         Y = self.calc_Y(f)
@@ -48,10 +48,13 @@ class KernelCalcs(Calcs):
         """Calculate the log-likelihood of the KLR model for the given parameters.
 
         Args:
-            alpha: The vector of parameters.
+            alpha: The vector of parameters. Shape: (num_cols_kernel_matrix, num_alternatives).
             P: The matrix of probabilities of each alternative for each row of 
                 the dataset. If None, the probabilities are calculated.
-                Default: None.
+                Shape: (n_samples, num_alternatives). Default: None.
+            choice_indices: The indices of the chosen alternatives for each row
+                of the dataset. If None, the indices are obtained from the
+                KernelMatrix object. Shape: (n_samples,). Default: None.
 
         Returns:
             The log-likelihood of the KLR model for the given parameters.
@@ -87,7 +90,7 @@ class KernelCalcs(Calcs):
         the given parameters.
 
         Args:
-            alpha: The vector of parameters.
+            alpha: The vector of parameters. Shape: (num_cols_kernel_matrix, num_alternatives).
             pmle: It specifies the type of penalization for performing a penalized
                 maximum likelihood estimation.  Default: None.
             pmle_lambda: The lambda parameter for the penalized maximum likelihood.
@@ -95,7 +98,8 @@ class KernelCalcs(Calcs):
         
         Returns:
             A tuple with the log-likelihood of the KLR model and its gradient for
-                the given parameters.
+                the given parameters. The log-likelihood is a float and the gradient
+                is a numpy array of shape: (num_rows_kernel_matrix * num_alternatives,).
         """
         P = self.calc_probabilities(alpha)
 
@@ -130,11 +134,11 @@ class KernelCalcs(Calcs):
         of the dataset.
 
         Args:
-            alpha: The vector of parameters.
+            alpha: The vector of parameters. Shape: (num_cols_kernel_matrix, num_alternatives).
 
         Returns:
             A matrix where each row corresponds to the utility of each alternative
-                for each row of the dataset.
+                for each row of the dataset. Shape: (n_samples, num_alternatives).
         """
         f = np.ndarray((self.K.get_num_rows(), 0), dtype=DEFAULT_DTYPE)
         for alt in range(0,self.K.get_num_alternatives()):
@@ -147,10 +151,13 @@ class KernelCalcs(Calcs):
         """Calculate the auxiliary matrix `G` and its derivative.
 
         Args:
-            Y: # TODO
+            Y: # TODO 
+                Shape: (n_samples, num_alternatives).
 
         Returns:
             A tuple with the auxiliary matrix `G` and its derivative.
+                The auxiliary matrix `G` is a numpy array of shape: (n_samples, 1)
+                and its derivative `G_j` is a numpy array of shape: (n_samples, num_alternatives).
         """
         # Implementation for KLR
         G = np.sum(Y, axis=1).reshape((Y.shape[0], 1))
@@ -165,7 +172,7 @@ class KernelCalcs(Calcs):
         """Calculate the Tikhonov penalty for the given parameters.
 
         Args:
-            alpha: The vector of parameters.
+            alpha: The vector of parameters. Shape: (num_cols_kernel_matrix, num_alternatives).
             pmle_lambda: The lambda parameter for the penalized maximum likelihood.
 
         Returns:
@@ -185,10 +192,11 @@ class KernelCalcs(Calcs):
         """Calculate the gradient of the Tikhonov penalty for the given parameters.
 
         Args:
-            alpha: The vector of parameters.
+            alpha: The vector of parameters. Shape: (num_cols_kernel_matrix, num_alternatives).
             pmle_lambda: The lambda parameter for the penalized maximum likelihood.
 
         Returns:
             The gradient of the Tikhonov penalty for the given parameters.
+                Shape: (num_cols_kernel_matrix, num_alternatives).
         """
         return self.K.get_num_rows() * pmle_lambda * alpha

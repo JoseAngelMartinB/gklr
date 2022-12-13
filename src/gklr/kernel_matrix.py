@@ -29,13 +29,14 @@ class KernelMatrix():
         """Constructor.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
             config: A Config object that contains the hyperparameters of the GKLR model.
-            Z: Test dataset stored in a pandas DataFrame. Default: None
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
+                Default: None
         """
         # TODO: Check arguments
         # Create a new kernel based on the kernel type selected
@@ -77,12 +78,13 @@ class KernelMatrix():
         components (or landmarks) used for the Nystrom approximation.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
-            Z: Test dataset stored in a pandas DataFrame. Default: None
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
+                Default: None
         """
         # TODO: Check that attributes contains more than 1 alternative
         # TODO: Check that none alternative from attributes contains no attributes at all (giving a 0x0 matrix)
@@ -189,7 +191,7 @@ class KernelMatrix():
         """Return the available alternatives.
 
         Returns:
-            A numpy array with the available alternatives.
+            A numpy array with the available alternatives. Shape: (n_alternatives,).
         """
         return np.array(self.alternatives)
 
@@ -204,7 +206,7 @@ class KernelMatrix():
         """Return the choices per observation.
 
         Returns:
-            A numpy array with the choices per observation.
+            A numpy array with the choices per observation. Shape: (n_samples,).
         """
         if self.choices is None:
             msg = "Kernel matrix not initialized."
@@ -217,6 +219,7 @@ class KernelMatrix():
 
         Returns:
             A numpy array with the choices per observation as alternative indices.
+            Shape: (n_samples,).
         """
         if self.choices is None:
             msg = "Kernel matrix not initialized."
@@ -237,6 +240,7 @@ class KernelMatrix():
 
         Returns:
             A numpy array with the choices per observation as a matrix.
+                Shape: (n_samples, n_alternatives).
         """
         if self.choices_matrix is None:
             Z = np.zeros((self.get_num_rows(), self.get_num_alternatives()))
@@ -293,12 +297,12 @@ class KernelMatrix():
 
         Args:
             A: Numpy array to be multiplied by the kernel matrix. 
-                Shape (self.get_num_cols(), •)
+                Shape: (num_cols_kernel_matrix, •)
             index: Index of the kernel matrix to be used.
 
         Returns:
             The dot product of the kernel matrix and `A`.
-                Shape (self.get_num_rows(), •)
+                Shape: (num_rows_kernel_matrix, •)
         """
         K = self.get_K(index=index)
         assert isinstance(K, np.ndarray)
@@ -366,7 +370,7 @@ class Nystroem():
         """Fit the Nyström approximation to the data and obtain the Nyström approximation of the kernel matrix.
 
         Args:
-            X: Data to be used for fitting the Nyström approximation. array-like of shape (n_samples, n_features)
+            X: Data to be used for fitting the Nyström approximation. array-like of shape: (n_samples, n_features)
             y: Target values. Default = None.
             fit_params: Additional parameters to be passed to the kernel function.
 
@@ -385,7 +389,7 @@ class Nystroem():
         on these and computes normalization matrix.
 
         Args:
-            X: Data to be used for fitting the Nyström approximation. array-like of shape (n_samples, n_features)
+            X: Data to be used for fitting the Nyström approximation. array-like of shape: (n_samples, n_features)
             y: Target values. Default = None.
         """
         X = check_array(X, accept_sparse='csr')
@@ -445,10 +449,10 @@ class Nystroem():
         between some training points and X.
 
         Args:
-            X: Data to transform. array-like of shape (n_samples, n_features)
+            X: Data to transform. array-like of shape: (n_samples, n_features)
 
         Returns:
-            Transformed data. ndarray of shape (n_samples, n_components)
+            Transformed data. ndarray of shape: (n_samples, n_components)
         """
         X = check_array(X, accept_sparse='csr')
         kernel_params = self._get_kernel_params()
