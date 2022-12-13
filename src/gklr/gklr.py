@@ -93,13 +93,14 @@ class KernelModel:
         Creates the KernelMatrix object and store it in a private variable.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features)
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
             config: A Config object that contains the hyperparameters of the GKLR model.
-            Z: Test dataset stored in a pandas DataFrame. Default: None
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
+                Default: None
             train: A boolean that indicates if the kernel matrix to be created is for train or test data.
                 Default: True.
 
@@ -178,7 +179,7 @@ class KernelModel:
         stored using the KernelMatrix class.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features)
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
@@ -226,7 +227,7 @@ class KernelModel:
         stored using the KernelMatrix class.
 
         Args:
-            Z: Test dataset stored in a pandas DataFrame.
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features)
             choice_column: Name of the column of DataFrame `Z` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `Z` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
@@ -278,7 +279,8 @@ class KernelModel:
         Perform the estimation of the kernel model and store post-estimation results.
 
         Args:
-            init_parms: Initial value of the parameters to be optimized. Default: None
+            init_parms: Initial value of the parameters to be optimized.
+                Shape: (num_cols_kernel_matrix, n_features). Default: None
             pmle: Penalization method. Default: None.
             pmle_lambda: Parameter for the penalization method. Default: 0
             method: Optimization method. Default: "L-BFGS-B".

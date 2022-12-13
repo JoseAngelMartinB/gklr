@@ -53,10 +53,13 @@ class KernelEstimator(Estimation):
         """Objective function for the Kernel Logistic Regression (KLR) model.
 
         Args:
-            params: The model parameters.
+            params: The model parameters. Shape: (n_params,).
 
         Returns:
             A tuple with the value of the objective function and its gradient.
+            The first element of the tuple is the value of the objective function
+            and the second element is the gradient of the objective function with 
+            respect to the model parameters with shape: (num_rows_kernel_matrix * num_alternatives,)
         """
         # Convert params to alfas and reshape them as a column vector
         alpha = params.reshape(self.alpha_shape)
@@ -90,7 +93,7 @@ class KernelEstimator(Estimation):
         """Minimize the objective function.
 
         Args:
-            params: The initial values of the model parameters.
+            params: The initial values of the model parameters. Shape: (n_params,).
             **kargs: Additional arguments for the minimization function.
 
         Returns:

@@ -46,11 +46,11 @@ class Calcs(ABC):
 
         Args:
             f: The matrix of utility function values for each alternative for each
-                row of the dataset.
+                row of the dataset. Shape: (n_samples, num_alternatives).
 
         Returns:
             The auxiliary matrix `Y` that contains the exponentiated values of the
-                matrix `f`.
+                matrix `f`. Shape: (n_samples, num_alternatives).
         """
         return np.exp(f)
 
@@ -69,16 +69,14 @@ class Calcs(ABC):
 
         Args:
             Y: The auxiliary matrix `Y` that contains the exponentiated values of
-                the matrix `f`.
-            G: The auxiliary matrix `G`.
-            G_j: The derivative of the auxiliary matrix `G`.
+                the matrix `f`. Shape: (n_samples, num_alternatives).
+            G: The auxiliary matrix `G`. Shape: (n_samples, 1).
+            G_j: The derivative of the auxiliary matrix `G`. Shape: (n_samples, num_alternatives).
 
         Returns:
             The matrix of probabilities for each alternative for each row of the
                 dataset. Each column corresponds to an alternative and each row
                 to a row of the dataset. The sum of the probabilities for each
-                row is 1.
-
-
+                row is 1. Shape: (n_samples, num_alternatives).
         """
         return (Y*G_j)/G
