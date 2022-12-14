@@ -56,7 +56,9 @@ class Calcs(ABC):
 
     @abstractmethod
     def calc_G(self, Y):
-        """Calculate the auxiliary matrix `G` and its derivative."""
+        """Calculate the generating function `G` of a Generalized Extreme Value
+            (GEV) model and its derivative.
+        """
         return
 
     def calc_P(self,
