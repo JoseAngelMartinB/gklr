@@ -1,6 +1,8 @@
 """GKLR optimizer module."""
 from typing import Optional, Any, Dict, List, Union, Callable
 
+import sys
+
 import numpy as np
 from scipy.optimize import OptimizeResult
 
@@ -75,29 +77,29 @@ class Optimizer():
         # TODO: Hessians are not implemented yet
 
         if method == "SGD":
-            # Use the stochastic gradient descent method
-            res = self._minimize_sgd(fun, x0, jac, args, **options)
+            # Use the mini-batch gradient descent method
+            res = self._minimize_mini_batch_sgd(fun, x0, jac=jac, args=args, **options)
         else:
             msg = (f"'method' = {method} is not a valid optimization method.\n"
                    f"Valid methods are: {CUSTOM_OPTIMIZATION_METHODS}.")
             logger_error(msg)
             raise ValueError(msg)
 
+        return res
 
-        return res # TODO: return the results
-
-
-    def _minimize_sgd(self,
-                      fun: Callable,
-                      x0: np.ndarray,
-                      jac: Optional[Callable] = None,
-                      args: tuple = (),
-                      learning_rate: float = 1e-03,
-                      gtol: float = 1e-06, 
-                      startiter: int = 0,
-                      maxiter: int = 1000,
-                      momentum: float = 0.0,
-                      **kwards,
+    def _minimize_mini_batch_sgd(self,
+                                 fun: Callable,
+                                 x0: np.ndarray,
+                                 jac: Optional[Callable] = None,
+                                 args: tuple = (),
+                                 learning_rate: float = 1e-03,
+                                 mini_batch_size: Optional[int] = None,
+                                 n_samples: int = 0,
+                                 gtol: float = 1e-06, 
+                                 maxiter: int = 1000, # Number of epochs
+                                 print_every: int = 0,
+                                 seed: int = 0,
+                                 **kwards,
     ) -> Dict[str, Any]:
         """Minimize the objective function using the stochastic gradient descent method.
         """
@@ -111,16 +113,28 @@ class Optimizer():
             m = "The learning rate must be greater than zero."
             logger_error(m)
             raise ValueError(m)
+        if mini_batch_size is None:
+            # Use the entire dataset as the mini-batch (batch gradient descent)
+            mini_batch_size = n_samples
+        if mini_batch_size <= 0:
+            m = "The mini-batch size must be greater than zero."
+            logger_error(m)
+            raise ValueError(m)
+        if n_samples <= 0:
+            m = ("The number of samples in the dataset must be greater than zero"
+                 " and corresponds with number of rows in the dataset.")
+            logger_error(m)
+            raise ValueError(m)
+        if mini_batch_size > n_samples:
+            m = "The mini-batch size must be less than or equal to the number of samples in the dataset."
+            logger_error(m)
+            raise ValueError(m)
         if gtol <= 0:
             m = "The tolerance must be greater than zero."
             logger_error(m)
             raise ValueError(m)
-        if startiter < 0:
-            m = "The iteration number must be non-negative."
-            logger_error(m)
-            raise ValueError(m)
         if maxiter <= 0:
-            m = "The maximum number of iterations must be greater than zero."
+            m = "The maximum number of iterations (epochs) must be greater than zero."
             logger_error(m)
             raise ValueError(m)
         if jac is None:
@@ -128,35 +142,68 @@ class Optimizer():
             m = "The gradient of the objective function must be provided."
             logger_error(m)
             raise ValueError(m)
-        if momentum < 0 or momentum > 1:
-            m = "The momentum must be in the range [0, 1]."
-            logger_error(m)
-            raise ValueError(m)
 
+        num_epochs = maxiter
         n, = x0.shape
         g = np.zeros((n,), np.float64)
-        velocity = np.zeros((n,), np.float64)
         message = "Optimization terminated successfully."
         success = True
 
+        # Optimization loop
         x = x0
         i = 0
-        for i in range(startiter, startiter + maxiter):
-            g = jac(x)
-            velocity = momentum * velocity - learning_rate * g
-            diff = velocity 
-            if np.all(np.abs(diff) <= gtol):
-                break
-            x = x + diff
-        i += 1
+        for i in range(num_epochs):
+            # Define the random mini-batches. Increment the seed to reshuffle differently at each epoch
+            seed += 1
+            minibatches = self._random_mini_batch(n_samples, mini_batch_size, seed=seed)
+            diff = np.zeros((n,), np.float64)
+            loss_total = 0
 
-        if i >= maxiter:
+            for minibatch in minibatches:
+                # Compute the loss of the mini-batch if it is required
+                if print_every > 0 and i % print_every == 0:
+                    loss_total += fun(x, minibatch, *args)
+
+                # Compute the gradient
+                g = jac(x, minibatch, *args)
+                diff = - learning_rate * g
+                
+                # Update the parameters
+                x = x + diff
+
+            if print_every > 0 and i % print_every == 0:
+                loss_avg = loss_total / len(minibatches)
+                print(f"\t* Epoch: {i}/{num_epochs} - Loss: {loss_avg:.4f}")
+                sys.stdout.flush()
+                
+            if np.all(np.abs(diff) <= gtol):
+                # Convergence
+                message = "Optimization terminated successfully. Gradient tolerance reached."
+                break
+
+        i += 1
+        if i >= num_epochs:
             message = 'STOP: TOTAL NO. of ITERATIONS REACHED LIMIT'
             success = False
 
         return OptimizeResult(x=x, fun=fun(x), jac=g, nit=i, nfev=i, 
             success=success, message=message)
 
+    def _random_mini_batch(self,
+                           n_samples: int,
+                           mini_batch_size: int,
+                           seed: int = 0,
+    ) -> List[np.ndarray]:
+        """
+        Generate a list of random minibatches for the indices [0, ..., n_samples - 1]
+        """
+        np.random.seed(seed)
+        indices = np.random.permutation(n_samples)
+        mini_batches = []
+        for i in range(0, n_samples, mini_batch_size):
+            mini_batch = indices[i:i + mini_batch_size]
+            mini_batches.append(mini_batch)
+        return mini_batches
 
 
 class MemoizeJac:
@@ -168,11 +215,24 @@ class MemoizeJac:
         self.jac = None
         self._value = None
         self.x = None
+        self.minibatch = None
 
-    def _compute_if_needed(self, x, *args):
+    def _compute_if_needed(self, x, minibatch = None,  *args):
+        # Check if the function value has already been computed for the given x
         if not np.all(x == self.x) or self._value is None or self.jac is None:
             self.x = np.asarray(x).copy()
-            fg = self.fun(x, *args)
+            if minibatch is not None:
+                self.minibatch = np.asarray(minibatch).copy()
+            else:
+                self.minibatch = None
+            fg = self.fun(x, minibatch, *args)
+            self.jac = fg[1]
+            self._value = fg[0]
+        
+        # Check if the mini-batches are the same as previous ones
+        if not np.all(minibatch == self.minibatch):
+            self.minibatch = np.asarray(minibatch).copy()
+            fg = self.fun(x, minibatch, *args)
             self.jac = fg[1]
             self._value = fg[0]
 
