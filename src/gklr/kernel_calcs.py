@@ -148,11 +148,14 @@ class KernelCalcs(Calcs):
         return f
 
     def calc_G(self, Y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Calculate the auxiliary matrix `G` and its derivative.
+        """Calculate the generating function `G` of a Generalized Extreme Value
+            (GEV) model and its derivative. For KLR model, the generating function
+            is the sum of the utilities of the alternatives for each row of the
+            dataset.
 
         Args:
-            Y: # TODO 
-                Shape: (n_samples, num_alternatives).
+            Y: The auxiliary matrix `Y` that contains the exponentiated values of the
+                matrix `f`. Shape: (n_samples, num_alternatives).
 
         Returns:
             A tuple with the auxiliary matrix `G` and its derivative.
