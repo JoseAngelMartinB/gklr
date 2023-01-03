@@ -171,11 +171,12 @@ class KernelCalcs(Calcs):
             raise ValueError(msg)
         H = grad_penalization + P - Z
 
-        gradient = np.ndarray((self.K.get_num_cols(), 0), dtype=DEFAULT_DTYPE)
-        for alt in range(0,self.K.get_num_alternatives()):
+        n_alts = self.K.get_num_alternatives()
+        gradient = np.zeros((self.K.get_num_cols(), n_alts), dtype=DEFAULT_DTYPE)
+        for alt in range(0,n_alts):
             gradient_alt = self.K.dot(H[:, alt], K_index=alt, col_indices=indices)
-            gradient_alt = (gradient_alt / H.shape[0]).reshape((self.K.get_num_cols(),1))
-            gradient = np.concatenate((gradient, gradient_alt), axis=1)
+            gradient_alt = (gradient_alt / H.shape[0]).reshape((self.K.get_num_cols(),))
+            gradient[:, alt] = gradient_alt
         gradient = gradient.reshape(self.K.get_num_cols() * self.K.get_num_alternatives())
         return gradient
 
@@ -204,11 +205,12 @@ class KernelCalcs(Calcs):
             else:
                 num_rows = indices.shape[0]
 
-        f = np.ndarray((num_rows, 0), dtype=DEFAULT_DTYPE)
-        for alt in range(0,self.K.get_num_alternatives()):
-            alpha_alt = alpha[:, alt].copy().reshape(self.K.get_num_cols(), 1)  # Get only the column for alt
+        n_alts = self.K.get_num_alternatives()
+        f = np.zeros((num_rows, n_alts), dtype=DEFAULT_DTYPE)
+        for alt in range(0,n_alts):
+            alpha_alt = alpha[:, alt].reshape(self.K.get_num_cols(),1)  # Get only the column for alt
             f_alt = self.K.dot(alpha_alt, K_index=alt, row_indices=indices)
-            f = np.concatenate((f, f_alt), axis=1)
+            f[:, alt] = f_alt.reshape((num_rows,))  # Store the result in the corresponding column
         return f
 
     def calc_G(self, Y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
