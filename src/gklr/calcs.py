@@ -28,7 +28,7 @@ class Calcs(ABC):
         return
 
     @abstractmethod
-    def log_likelihood_and_gradient(self, alpha):
+    def gradient(self, alpha, P):
         """Calculate the log-likelihood of the model and its gradient for
         the given parameters.
         """

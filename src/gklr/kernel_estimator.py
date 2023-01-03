@@ -46,16 +46,22 @@ class KernelEstimator(Estimation):
         super().__init__(calcs, pmle, pmle_lambda, method, verbose)
         self.calcs = calcs
         self.alpha_shape = (calcs.K.get_num_cols(), calcs.K.get_num_alternatives())
+        self.P_cache = None # Cache for the matrix of probabilities P
+        self.prev_params = None # Previous parameters used in the objective function
+        self.prev_indices = None # Previous indices used in the objective function
 
     def objective_function(self,
                            params: np.ndarray,
-    ) -> Tuple[float, np.ndarray]:
+                           indices: Optional[np.ndarray] = None
+    ) -> float:
         """Compute the objective function for the Kernel Logistic Regression 
         (KLR) model and its gradient.
 
         Args:
             params: The model parameters. Shape: (n_params,).
-
+            indices: The indices of the samples to be used in the computation of
+                the objective function. If 'None' all the samples will be used.
+                Default: None.
         Returns:
             A tuple with the value of the objective function and its gradient.
             The first element of the tuple is the value of the objective function
@@ -65,27 +71,95 @@ class KernelEstimator(Estimation):
         # Convert params to alfas and reshape them as a column vector
         alpha = params.reshape(self.alpha_shape)
 
-        # Compute the log-likelihood and gradient
-        ll, gradient = self.calcs.log_likelihood_and_gradient(alpha, self.pmle, self.pmle_lambda)
-
-        # Compute the penalty function
-        penalty = 0
-        if self.pmle is None:
-            pass
-        elif self.pmle == "Tikhonov":
-            penalty = self.calcs.tikhonov_penalty(alpha, self.pmle_lambda)
+        if self.prev_params is None or not np.array_equal(params, self.prev_params) or \
+            (indices is not None and self.prev_indices is None) or \
+            (indices is None and self.prev_indices is not None) or \
+            (indices is not None and self.prev_indices is not None and \
+            not np.array_equal(indices, self.prev_indices)):
+            # Compute the matrix of probabilities P and store it in the cache
+            P = self.calcs.calc_probabilities(alpha, indices=indices)
+            self.P_cache = P
+            self.prev_params = params
+            self.prev_indices = indices
         else:
-            msg = f"'pmle' = {self.pmle} is not a valid value for the penalization."
-            logger_error(msg)
-            raise ValueError(msg)
+            # Reuse the cached matrix of probabilities P
+            P = self.P_cache
 
-        self.history["loss"].append(-ll + penalty)
-        self.history["gradient"].append(gradient)
+        # Compute the log-likelihood
+        ll = self.calcs.log_likelihood(alpha, P=P, pmle=self.pmle, pmle_lambda=self.pmle_lambda, indices=indices)
+        self.history["loss"].append(-ll)
 
         if self.verbose >= 2:
-            print(f"Current objective function: {-ll+penalty:,.4f}", end = "\r")
+            print(f"Current objective function: {-ll:,.4f}", end = "\r")
             sys.stdout.flush()
-        return (-ll + penalty, gradient)
+        return (-ll)
+
+    def gradient(self,
+                 params: np.ndarray,
+                 indices: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Compute the gradient of the objective function for the Kernel Logistic
+        Regression (KLR) model.
+        
+        This function is used by the optimization methods that do not require
+        the computation of the objective function. If the objective function is
+        also required, it is more efficient to use the 'objective_function'
+        method, setting the 'return_gradient' argument to 'True'.
+
+        Args:
+            params: The model parameters. Shape: (n_params,).
+            indices: The indices of the samples to be used in the computation of
+                the the gradient. If 'None' all the samples will be used.
+                Default: None.
+        
+        Returns:
+            The gradient of the objective function with respect to the model
+            parameters with shape: (num_rows_kernel_matrix * num_alternatives,).
+        """
+        # Convert params to alfas and reshape them as a column vector
+        alpha = params.reshape(self.alpha_shape)
+
+        if self.prev_params is None or not np.array_equal(params, self.prev_params) or \
+            (indices is not None and self.prev_indices is None) or \
+            (indices is None and self.prev_indices is not None) or \
+            (indices is not None and self.prev_indices is not None and \
+            not np.array_equal(indices, self.prev_indices)):
+            # Compute the matrix of probabilities P and store it in the cache
+            P = self.calcs.calc_probabilities(alpha, indices=indices)
+            self.P_cache = P
+            self.prev_params = params
+            self.prev_indices = indices
+        else:
+            # Reuse the cached matrix of probabilities P
+            P = self.P_cache
+
+        # Compute the log-likelihood and gradient
+        gradient = self.calcs.gradient(alpha, P=P, pmle=self.pmle, pmle_lambda=self.pmle_lambda, indices=indices)
+        return gradient
+
+    def objective_function_with_gradient(self,
+                                         params: np.ndarray,
+                                         indices: Optional[np.ndarray] = None
+    ) -> Tuple[float, np.ndarray]:
+        """Compute the objective function for the Kernel Logistic Regression 
+        (KLR) model and its gradient.
+
+        Args:
+            params: The model parameters. Shape: (n_params,).
+            indices: The indices of the samples to be used in the computation of
+                the objective function. If 'None' all the samples will be used.
+                Default: None.
+        Returns:
+            A tuple with the value of the objective function and its gradient.
+            The first element of the tuple is the value of the objective function
+            and the second element is the gradient of the objective function with 
+            respect to the model parameters with shape: (num_rows_kernel_matrix * num_alternatives,)
+        """
+        # Compute the log-likelihood and gradient
+        obj = self.objective_function(params, indices=indices)
+        gradient = self.gradient(params, indices=indices)
+        return (obj, gradient)
+
 
     def minimize(self,
                  params: np.ndarray,

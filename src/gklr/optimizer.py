@@ -113,10 +113,7 @@ class Optimizer():
             m = "The learning rate must be greater than zero."
             logger_error(m)
             raise ValueError(m)
-        if mini_batch_size is None:
-            # Use the entire dataset as the mini-batch (batch gradient descent)
-            mini_batch_size = n_samples
-        if mini_batch_size <= 0:
+        if mini_batch_size is not None and mini_batch_size <= 0:
             m = "The mini-batch size must be greater than zero."
             logger_error(m)
             raise ValueError(m)
@@ -125,7 +122,7 @@ class Optimizer():
                  " and corresponds with number of rows in the dataset.")
             logger_error(m)
             raise ValueError(m)
-        if mini_batch_size > n_samples:
+        if mini_batch_size is not None and mini_batch_size > n_samples:
             m = "The mini-batch size must be less than or equal to the number of samples in the dataset."
             logger_error(m)
             raise ValueError(m)
@@ -146,6 +143,9 @@ class Optimizer():
         num_epochs = maxiter
         n, = x0.shape
         g = np.zeros((n,), np.float64)
+        history = {
+            "loss": [],
+        }
         message = "Optimization terminated successfully."
         success = True
 
@@ -153,16 +153,21 @@ class Optimizer():
         x = x0
         i = 0
         for i in range(num_epochs):
-            # Define the random mini-batches. Increment the seed to reshuffle differently at each epoch
-            seed += 1
-            minibatches = self._random_mini_batch(n_samples, mini_batch_size, seed=seed)
+            if mini_batch_size is None:
+                # Use the entire dataset as the mini-batch (batch gradient descent)
+                minibatches = [None]
+            else:
+                # Define the random mini-batches. Increment the seed to reshuffle differently at each epoch
+                seed += 1
+                minibatches = self._random_mini_batch(n_samples, mini_batch_size, seed=seed)
+
             diff = np.zeros((n,), np.float64)
-            loss_total = 0
+            epoch_loss = 0
 
             for minibatch in minibatches:
                 # Compute the loss of the mini-batch if it is required
                 if print_every > 0 and i % print_every == 0:
-                    loss_total += fun(x, minibatch, *args)
+                    epoch_loss += fun(x, minibatch, *args)
 
                 # Compute the gradient
                 g = jac(x, minibatch, *args)
@@ -171,9 +176,10 @@ class Optimizer():
                 # Update the parameters
                 x = x + diff
 
+            # Print the average loss of the mini-batches if it is required
             if print_every > 0 and i % print_every == 0:
-                loss_avg = loss_total / len(minibatches)
-                print(f"\t* Epoch: {i}/{num_epochs} - Loss: {loss_avg:.4f}")
+                history["loss"].append(epoch_loss)
+                print(f"\t* Epoch: {i}/{num_epochs} - Avg. loss: {epoch_loss:.4f}")
                 sys.stdout.flush()
                 
             if np.all(np.abs(diff) <= gtol):
@@ -187,7 +193,7 @@ class Optimizer():
             success = False
 
         return OptimizeResult(x=x, fun=fun(x), jac=g, nit=i, nfev=i, 
-            success=success, message=message)
+            success=success, message=message, history=history)
 
     def _random_mini_batch(self,
                            n_samples: int,
@@ -202,6 +208,8 @@ class Optimizer():
         mini_batches = []
         for i in range(0, n_samples, mini_batch_size):
             mini_batch = indices[i:i + mini_batch_size]
+            # Sort the indices of each mini-batch to improve memory access time
+            mini_batch.sort()
             mini_batches.append(mini_batch)
         return mini_batches
 
