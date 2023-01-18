@@ -1,5 +1,5 @@
 """GKLR optimizer module."""
-from typing import Optional, Any, Dict, List, Union, Callable
+from typing import Optional, Any, Dict, List, Union, Callable, Tuple
 
 import sys
 
@@ -61,6 +61,8 @@ class Optimizer():
             options = dict(options)
             if method == 'SGD':
                 options.setdefault('gtol', tol)
+            elif method == 'momentumSGD':
+                options.setdefault('gtol', tol)
 
         if callable(jac):
             pass
@@ -77,8 +79,11 @@ class Optimizer():
         # TODO: Hessians are not implemented yet
 
         if method == "SGD":
-            # Use the mini-batch gradient descent method
-            res = self._minimize_mini_batch_sgd(fun, x0, jac=jac, args=args, **options)
+            # Use the mini-batch stochastic gradient descent method
+            res = self.minimize_mini_batch_sgd(fun, x0, optimizer="SGD", jac=jac, args=args, **options)
+        elif method == "momentumSGD":
+            # Use the mini-batch stochastic gradient descent method with momentum
+            res = self.minimize_mini_batch_sgd(fun, x0, optimizer="momentumSGD", jac=jac, args=args, **options)
         else:
             msg = (f"'method' = {method} is not a valid optimization method.\n"
                    f"Valid methods are: {CUSTOM_OPTIMIZATION_METHODS}.")
@@ -87,21 +92,55 @@ class Optimizer():
 
         return res
 
-    def _minimize_mini_batch_sgd(self,
+    def minimize_mini_batch_sgd(self,
                                  fun: Callable,
                                  x0: np.ndarray,
                                  jac: Optional[Callable] = None,
+                                 optimizer: str = "SGD",
                                  args: tuple = (),
                                  learning_rate: float = 1e-03,
                                  mini_batch_size: Optional[int] = None,
                                  n_samples: int = 0,
+                                 beta: float = 0.9,
                                  gtol: float = 1e-06, 
                                  maxiter: int = 1000, # Number of epochs
                                  print_every: int = 0,
                                  seed: int = 0,
                                  **kwards,
     ) -> Dict[str, Any]:
-        """Minimize the objective function using the stochastic gradient descent method.
+        """Minimize the objective function using the mini-batch stochastic 
+        gradient descent method.
+
+        Args:
+            fun: The objective function to be minimized.
+                ``fun(x, *args) -> float``,
+                where ``x`` is the input vector and ``args`` are the additional
+                arguments of the objective function.
+            x0: The initial guess of the parameters.
+            jac: The gradient of the objective function. Default: None.
+            optimizer: The variant of the mini-batch stochastic gradient descent
+                method to be used. Default: "SGD".
+            args: Additional arguments passed to the objective function.
+            learning_rate: The learning rate. Default: 1e-03.
+            mini_batch_size: The mini-batch size. Default: None.
+            n_samples: The number of samples in the dataset. Default: 0.
+            beta: The momentum parameter. Default: 0.9.
+            gtol: The tolerance for the termination. Default: 1e-06.
+            maxiter: The maximum number of iterations or epochs. Default: 1000.
+            print_every: The number of iterations to print the loss. Default: 0. 
+            seed: The seed for the random number generator. Default: 0.
+            **kwards: Additional arguments passed to the objective function.
+
+        Returns:
+            A dictionary containing the result of the optimization procedure:
+                fun: The value of the objective function at the solution.
+                x: A 1-D ndarray containing the solution.
+                jac: The gradient of the objective function at the solution.
+                nit: The number of iterations.
+                nfev: The number of function evaluations.
+                success: A boolean indicating whether the optimization converged.
+                message: A string describing the cause of the termination.
+                history: A dictionary containing the loss history.
         """
 
         # Checking errors
@@ -140,9 +179,17 @@ class Optimizer():
             logger_error(m)
             raise ValueError(m)
 
+
+        # Initialize parameters
         num_epochs = maxiter
         n, = x0.shape
         g = np.zeros((n,), np.float64)
+        v = np.ndarray(0, np.float64)
+        if optimizer == "SGD":
+            pass
+        elif optimizer == "momentumSGD":
+            # Initialize velocity
+            v = np.zeros((n,), np.float64)
         history = {
             "loss": [],
         }
@@ -171,9 +218,14 @@ class Optimizer():
 
                 # Compute the gradient
                 g = jac(x, minibatch, *args)
-                diff = - learning_rate * g
                 
                 # Update the parameters
+                if optimizer == "SGD":
+                    x = self._update_parameters_SGD(x, g, learning_rate)
+                elif optimizer == "momentumSGD":
+                    x, v = self._update_parameters_momentumSGD(x, g, v, learning_rate, beta)
+
+                diff = - learning_rate * g
                 x = x + diff
 
             # Print the average loss of the mini-batches if it is required
@@ -194,6 +246,25 @@ class Optimizer():
 
         return OptimizeResult(x=x, fun=fun(x), jac=g, nit=i, nfev=i, 
             success=success, message=message, history=history)
+
+    def _update_parameters_SGD(self,
+                               x: np.ndarray,
+                               g: np.ndarray,
+                               learning_rate: float,
+     ) -> np.ndarray:
+          """Update the parameters using the mini-batch SGD method."""
+          return x - learning_rate * g
+
+    def _update_parameters_momentumSGD(self,
+                                       x: np.ndarray,
+                                       g: np.ndarray,
+                                       v: np.ndarray,
+                                       learning_rate: float,
+                                       beta: float,
+     ) -> Tuple[np.ndarray, np.ndarray]:
+        """Update the parameters using the momentum mini-batch SGD method."""
+        v = beta * v + (1 - beta) * g
+        return x - learning_rate * v, v
 
     def _random_mini_batch(self,
                            n_samples: int,
