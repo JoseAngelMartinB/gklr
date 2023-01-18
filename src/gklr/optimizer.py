@@ -108,6 +108,8 @@ class Optimizer():
                                 beta1: float = 0.9,
                                 beta2: float = 0.999,
                                 epsilon: float = 1e-08,
+                                decay_method: Optional[str] = None,
+                                decay_rate: float = 1,
                                 gtol: float = 1e-06, 
                                 maxiter: int = 1000, # Number of epochs
                                 print_every: int = 0,
@@ -136,6 +138,9 @@ class Optimizer():
             beta2: The exponential decay rate for the second moment estimates 
                 (squared gradients) in the Adam method. Default: 0.999.
             epsilon: A small constant for numerical stability in the Adam method.
+                Default: 1e-08.
+            decay_method: The method for the learning rate decay. Default: None.
+            decay_rate: The learning rate decay rate. Default: 1.
             gtol: The tolerance for the termination. Default: 1e-06.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
             print_every: The number of iterations to print the loss. Default: 0. 
@@ -153,7 +158,6 @@ class Optimizer():
                 message: A string describing the cause of the termination.
                 history: A dictionary containing the loss history.
         """
-
         # Checking errors
         if not callable(fun):
             m = "The objective function must be callable."
@@ -189,7 +193,6 @@ class Optimizer():
             m = "The gradient of the objective function must be provided."
             logger_error(m)
             raise ValueError(m)
-
 
         # Initialize parameters
         num_epochs = maxiter
@@ -249,8 +252,9 @@ class Optimizer():
                     logger_error(m)
                     raise ValueError(m)
 
-                diff = - learning_rate * g
-                x = x + diff
+            if decay_method is not None:
+                # Update the learning rate
+                # TODO: Implement the learning rate decay
 
             # Print the average loss of the mini-batches if it is required
             if print_every > 0 and i % print_every == 0:
