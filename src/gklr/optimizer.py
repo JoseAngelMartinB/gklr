@@ -84,6 +84,9 @@ class Optimizer():
         elif method == "momentumSGD":
             # Use the mini-batch stochastic gradient descent method with momentum
             res = self.minimize_mini_batch_sgd(fun, x0, optimizer="momentumSGD", jac=jac, args=args, **options)
+        elif method == "adam":
+            # Use the mini-batch Adam method
+            res = self.minimize_mini_batch_sgd(fun, x0, optimizer="adam", jac=jac, args=args, **options)
         else:
             msg = (f"'method' = {method} is not a valid optimization method.\n"
                    f"Valid methods are: {CUSTOM_OPTIMIZATION_METHODS}.")
@@ -93,20 +96,23 @@ class Optimizer():
         return res
 
     def minimize_mini_batch_sgd(self,
-                                 fun: Callable,
-                                 x0: np.ndarray,
-                                 jac: Optional[Callable] = None,
-                                 optimizer: str = "SGD",
-                                 args: tuple = (),
-                                 learning_rate: float = 1e-03,
-                                 mini_batch_size: Optional[int] = None,
-                                 n_samples: int = 0,
-                                 beta: float = 0.9,
-                                 gtol: float = 1e-06, 
-                                 maxiter: int = 1000, # Number of epochs
-                                 print_every: int = 0,
-                                 seed: int = 0,
-                                 **kwards,
+                                fun: Callable,
+                                x0: np.ndarray,
+                                jac: Optional[Callable] = None,
+                                optimizer: str = "SGD",
+                                args: tuple = (),
+                                learning_rate: float = 1e-03,
+                                mini_batch_size: Optional[int] = None,
+                                n_samples: int = 0,
+                                beta: float = 0.9,
+                                beta1: float = 0.9,
+                                beta2: float = 0.999,
+                                epsilon: float = 1e-08,
+                                gtol: float = 1e-06, 
+                                maxiter: int = 1000, # Number of epochs
+                                print_every: int = 0,
+                                seed: int = 0,
+                                **kwards,
     ) -> Dict[str, Any]:
         """Minimize the objective function using the mini-batch stochastic 
         gradient descent method.
@@ -125,6 +131,11 @@ class Optimizer():
             mini_batch_size: The mini-batch size. Default: None.
             n_samples: The number of samples in the dataset. Default: 0.
             beta: The momentum parameter. Default: 0.9.
+            beta1: The exponential decay rate for the first moment estimates
+                (gradients) in the Adam method. Default: 0.9.
+            beta2: The exponential decay rate for the second moment estimates 
+                (squared gradients) in the Adam method. Default: 0.999.
+            epsilon: A small constant for numerical stability in the Adam method.
             gtol: The tolerance for the termination. Default: 1e-06.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
             print_every: The number of iterations to print the loss. Default: 0. 
@@ -185,11 +196,17 @@ class Optimizer():
         n, = x0.shape
         g = np.zeros((n,), np.float64)
         v = np.ndarray(0, np.float64)
+        s = np.ndarray(0, np.float64)
+        t = 0 # Adam counter
         if optimizer == "SGD":
             pass
         elif optimizer == "momentumSGD":
             # Initialize velocity
             v = np.zeros((n,), np.float64)
+        elif optimizer == "adam":
+            # Initialize velocity (v) and the square of the gradient (s)
+            v = np.zeros((n,), np.float64)
+            s = np.zeros((n,), np.float64)
         history = {
             "loss": [],
         }
@@ -224,6 +241,13 @@ class Optimizer():
                     x = self._update_parameters_SGD(x, g, learning_rate)
                 elif optimizer == "momentumSGD":
                     x, v = self._update_parameters_momentumSGD(x, g, v, learning_rate, beta)
+                elif optimizer == "adam":
+                    t = t + 1 # Adam counter
+                    x, v, s = self._update_parameters_adam(x, g, v, s, t, learning_rate, beta1, beta2, epsilon)
+                else:
+                    m = f"Optimizer '{optimizer}' is not supported."
+                    logger_error(m)
+                    raise ValueError(m)
 
                 diff = - learning_rate * g
                 x = x + diff
@@ -263,8 +287,35 @@ class Optimizer():
                                        beta: float,
      ) -> Tuple[np.ndarray, np.ndarray]:
         """Update the parameters using the momentum mini-batch SGD method."""
-        v = beta * v + (1 - beta) * g
-        return x - learning_rate * v, v
+        # Update the velocity
+        v = beta*v + (1-beta)*g
+        # Update the parameters
+        x = x - learning_rate*v
+        return x, v
+
+    def _update_parameters_adam(self,
+                                x: np.ndarray,
+                                g: np.ndarray,
+                                v: np.ndarray,
+                                s: np.ndarray,
+                                t: int,
+                                learning_rate: float,
+                                beta1: float,
+                                beta2: float,
+                                epsilon: float,
+     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Update the parameters using the mini-batch Adam method."""
+        # Update the velocity
+        v = beta1*v + (1-beta1)*g
+        # Compute bias-corrected first moment estimate
+        v_hat = v / (1-np.power(beta1,t))
+        # Update the squared gradients
+        s = beta2*s + (1-beta2)*np.power(g,2)
+        # Compute bias-corrected second raw moment estimate
+        s_hat = s/(1-np.power(beta2,t))
+        # Update the parameters
+        x = x - learning_rate*v_hat/(np.sqrt(s_hat)+epsilon)
+        return x, v, s
 
     def _random_mini_batch(self,
                            n_samples: int,

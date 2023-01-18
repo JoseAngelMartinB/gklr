@@ -90,7 +90,7 @@ class Estimation(ABC):
         options.setdefault('gtol', gradient_tol)
         options.setdefault('maxiter', maxiter)
         options.setdefault('maxls', 30)
-        if self.method == "SGD" or self.method == "momentumSGD":
+        if self.method == "SGD" or self.method == "momentumSGD" or self.method == "adam":
             options.setdefault('n_samples', self.n_samples)
 
         if self.method in SCIPY_OPTIMIZATION_METHODS:
