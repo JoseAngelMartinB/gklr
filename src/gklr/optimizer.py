@@ -107,6 +107,7 @@ class Optimizer():
                                 epsilon: float = 1e-08,
                                 decay_method: Optional[str] = None,
                                 decay_rate: float = 1,
+                                decay_step: int = 100,
                                 maxiter: int = 1000, # Number of epochs
                                 print_every: int = 0,
                                 seed: int = 0,
@@ -137,6 +138,8 @@ class Optimizer():
                 Default: 1e-08.
             decay_method: The method for the learning rate decay. Default: None.
             decay_rate: The learning rate decay rate. Default: 1.
+            decay_step: The learning rate decay step for the step decay method.
+                Default: 100.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
             print_every: The number of iterations to print the loss. Default: 0. 
             seed: The seed for the random number generator. Default: 0.
@@ -248,6 +251,11 @@ class Optimizer():
                 # Update the learning rate
                 if decay_method == "time-based":
                     learning_rate = self._update_lr_time_based(learning_rate0, epoch, decay_rate)
+                elif decay_method == "exponential":
+                    learning_rate = self._update_lr_exponential(learning_rate0, epoch, decay_rate)
+                elif decay_method == "step":
+                    learning_rate = self._update_lr_step(learning_rate0, epoch, decay_rate, decay_step)
+                    
                 else:
                     m = f"Decay method '{decay_method}' is not supported."
                     logger_error(m)
@@ -347,6 +355,44 @@ class Optimizer():
             float: Updated learning rate.
         """
         learning_rate = learning_rate0/(1+decay_rate*epoch)
+        return learning_rate
+
+    def _update_lr_exponential(self,
+                               learning_rate0: float,
+                               epoch: int,
+                               decay_rate: float,
+    ) -> float:
+        """Update the learning rate using the exponential decay method.
+
+        Args:
+            learning_rate0 (float): Initial learning rate.
+            epoch (int): Current epoch (iteration).
+            decay_rate (float): Decay rate.
+
+        Returns:
+            float: Updated learning rate.
+        """
+        learning_rate = learning_rate0*np.exp(-decay_rate*epoch)
+        return learning_rate
+
+    def _update_lr_step(self,
+                        learning_rate0: float,
+                        epoch: int,
+                        decay_rate: float,
+                        decay_steps: int,
+    ) -> float:
+        """Update the learning rate using the step decay method.
+
+        Args:
+            learning_rate0 (float): Initial learning rate.
+            epoch (int): Current epoch (iteration).
+            decay_rate (float): Decay rate.
+            decay_steps (int): Decay steps.
+
+        Returns:
+            float: Updated learning rate.
+        """
+        learning_rate = learning_rate0/(1+decay_rate*np.floor(epoch/decay_steps))
         return learning_rate
 
 
