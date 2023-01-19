@@ -59,10 +59,7 @@ class Optimizer():
 
         if tol is not None:
             options = dict(options)
-            if method == 'SGD':
-                options.setdefault('gtol', tol)
-            elif method == 'momentumSGD':
-                options.setdefault('gtol', tol)
+            options.setdefault('gtol', tol)
 
         if callable(jac):
             pass
@@ -110,7 +107,6 @@ class Optimizer():
                                 epsilon: float = 1e-08,
                                 decay_method: Optional[str] = None,
                                 decay_rate: float = 1,
-                                gtol: float = 1e-06, 
                                 maxiter: int = 1000, # Number of epochs
                                 print_every: int = 0,
                                 seed: int = 0,
@@ -141,7 +137,6 @@ class Optimizer():
                 Default: 1e-08.
             decay_method: The method for the learning rate decay. Default: None.
             decay_rate: The learning rate decay rate. Default: 1.
-            gtol: The tolerance for the termination. Default: 1e-06.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
             print_every: The number of iterations to print the loss. Default: 0. 
             seed: The seed for the random number generator. Default: 0.
@@ -180,10 +175,6 @@ class Optimizer():
             m = "The mini-batch size must be less than or equal to the number of samples in the dataset."
             logger_error(m)
             raise ValueError(m)
-        if gtol <= 0:
-            m = "The tolerance must be greater than zero."
-            logger_error(m)
-            raise ValueError(m)
         if maxiter <= 0:
             m = "The maximum number of iterations (epochs) must be greater than zero."
             logger_error(m)
@@ -196,6 +187,7 @@ class Optimizer():
 
         # Initialize parameters
         num_epochs = maxiter
+        learning_rate0 = learning_rate # Initial learning rate
         n, = x0.shape
         g = np.zeros((n,), np.float64)
         v = np.ndarray(0, np.float64)
@@ -218,8 +210,8 @@ class Optimizer():
 
         # Optimization loop
         x = x0
-        i = 0
-        for i in range(num_epochs):
+        epoch = 0
+        for epoch in range(num_epochs):
             if mini_batch_size is None:
                 # Use the entire dataset as the mini-batch (batch gradient descent)
                 minibatches = [None]
@@ -233,7 +225,7 @@ class Optimizer():
 
             for minibatch in minibatches:
                 # Compute the loss of the mini-batch if it is required
-                if print_every > 0 and i % print_every == 0:
+                if print_every > 0 and epoch % print_every == 0:
                     epoch_loss += fun(x, minibatch, *args)
 
                 # Compute the gradient
@@ -254,25 +246,25 @@ class Optimizer():
 
             if decay_method is not None:
                 # Update the learning rate
-                # TODO: Implement the learning rate decay
+                if decay_method == "time-based":
+                    learning_rate = self._update_lr_time_based(learning_rate0, epoch, decay_rate)
+                else:
+                    m = f"Decay method '{decay_method}' is not supported."
+                    logger_error(m)
+                    raise ValueError(m)
 
             # Print the average loss of the mini-batches if it is required
-            if print_every > 0 and i % print_every == 0:
+            if print_every > 0 and epoch % print_every == 0:
                 history["loss"].append(epoch_loss)
-                print(f"\t* Epoch: {i}/{num_epochs} - Avg. loss: {epoch_loss:.4f}")
+                print(f"\t* Epoch: {epoch}/{num_epochs} - Avg. loss: {epoch_loss:.4f}")
                 sys.stdout.flush()
-                
-            if np.all(np.abs(diff) <= gtol):
-                # Convergence
-                message = "Optimization terminated successfully. Gradient tolerance reached."
-                break
 
-        i += 1
-        if i >= num_epochs:
+        epoch += 1
+        if epoch >= num_epochs:
             message = 'STOP: TOTAL NO. of ITERATIONS REACHED LIMIT'
-            success = False
+            success = True
 
-        return OptimizeResult(x=x, fun=fun(x), jac=g, nit=i, nfev=i, 
+        return OptimizeResult(x=x, fun=fun(x), jac=g, nit=epoch, nfev=epoch, 
             success=success, message=message, history=history)
 
     def _update_parameters_SGD(self,
@@ -338,6 +330,24 @@ class Optimizer():
             mini_batch.sort()
             mini_batches.append(mini_batch)
         return mini_batches
+    
+    def _update_lr_time_based(self,
+                              learning_rate0: float,
+                              epoch: int,
+                              decay_rate: float,
+    ) -> float:
+        """Update the learning rate using the time-based decay method.
+
+        Args:
+            learning_rate0 (float): Initial learning rate.
+            epoch (int): Current epoch (iteration).
+            decay_rate (float): Decay rate.
+
+        Returns:
+            float: Updated learning rate.
+        """
+        learning_rate = learning_rate0/(1+decay_rate*epoch)
+        return learning_rate
 
 
 class MemoizeJac:
