@@ -58,8 +58,8 @@ class Optimizer():
             options = {}
 
         if tol is not None:
-            options = dict(options)
             options.setdefault('gtol', tol)
+            # TODO: Currently, the tolerance is not used by any optimization method
 
         if callable(jac):
             pass
@@ -74,6 +74,27 @@ class Optimizer():
             jac = None
 
         # TODO: Hessians are not implemented yet
+
+        # Initialize the learning rate scheduler
+        if "learning_rate_scheduler" in options:
+            learning_rate_scheduler = options["learning_rate_scheduler"]
+            if learning_rate_scheduler is not None and not callable(learning_rate_scheduler):
+                msg = (f"'learning_rate_scheduler' = {learning_rate_scheduler} is not a valid function.\n"
+                        f"Valid functions are: callable.")
+                logger_error(msg)
+                raise ValueError(msg)
+        elif "lr_scheduler" in options:
+            lr_scheduler = options["lr_scheduler"]
+            options.pop("lr_scheduler")
+            decay_opts = {}
+            if "lr_decay_rate" in options:
+                decay_opts["lr_decay_rate"] = options["lr_decay_rate"]
+                options.pop("lr_decay_rate")
+            if "lr_decay_step" in options:
+                decay_opts["lr_decay_step"] = options["lr_decay_step"]
+                options.pop("lr_decay_step")
+            learning_rate_scheduler = LearningRateScheduler(lr_scheduler, **decay_opts)
+            options["learning_rate_scheduler"] = learning_rate_scheduler
 
         if method == "SGD":
             # Use the mini-batch stochastic gradient descent method
@@ -105,9 +126,7 @@ class Optimizer():
                                 beta1: float = 0.9,
                                 beta2: float = 0.999,
                                 epsilon: float = 1e-08,
-                                decay_method: Optional[str] = None,
-                                decay_rate: float = 1,
-                                decay_step: int = 100,
+                                learning_rate_scheduler: Optional[Callable] = None,
                                 maxiter: int = 1000, # Number of epochs
                                 print_every: int = 0,
                                 seed: int = 0,
@@ -136,10 +155,8 @@ class Optimizer():
                 (squared gradients) in the Adam method. Default: 0.999.
             epsilon: A small constant for numerical stability in the Adam method.
                 Default: 1e-08.
-            decay_method: The method for the learning rate decay. Default: None.
-            decay_rate: The learning rate decay rate. Default: 1.
-            decay_step: The learning rate decay step for the step decay method.
-                Default: 100.
+            learning_rate_scheduler: A function that computes the learning rate
+                at each iteration. Default: None.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
             print_every: The number of iterations to print the loss. Default: 0. 
             seed: The seed for the random number generator. Default: 0.
@@ -247,19 +264,9 @@ class Optimizer():
                     logger_error(m)
                     raise ValueError(m)
 
-            if decay_method is not None:
-                # Update the learning rate
-                if decay_method == "time-based":
-                    learning_rate = self._update_lr_time_based(learning_rate0, epoch, decay_rate)
-                elif decay_method == "exponential":
-                    learning_rate = self._update_lr_exponential(learning_rate0, epoch, decay_rate)
-                elif decay_method == "step":
-                    learning_rate = self._update_lr_step(learning_rate0, epoch, decay_rate, decay_step)
-                    
-                else:
-                    m = f"Decay method '{decay_method}' is not supported."
-                    logger_error(m)
-                    raise ValueError(m)
+            # Update the learning rate
+            if learning_rate_scheduler is not None:
+                learning_rate = learning_rate_scheduler(learning_rate0, epoch)
 
             # Print the average loss of the mini-batches if it is required
             if print_every > 0 and epoch % print_every == 0:
@@ -338,7 +345,59 @@ class Optimizer():
             mini_batch.sort()
             mini_batches.append(mini_batch)
         return mini_batches
-    
+
+
+class LearningRateScheduler:
+    """Implements different learning rate scheduling methods."""
+
+    def __init__(self, 
+                 lr_scheduler: Optional[str] = None,
+                 lr_decay_rate: float = 1,
+                 lr_decay_step: int = 100,
+    ) -> None:
+        """Initialize the learning rate scheduler.
+
+        Args:
+            lr_scheduler: The method for the learning rate decay. Default: None.
+            lr_decay_rate: The learning rate decay rate. Default: 1.
+            lr_decay_step: The learning rate decay step for the step decay method.
+            Default: 100.
+        """
+        self.lr_scheduler = lr_scheduler
+        self.lr_decay_rate = lr_decay_rate
+        self.lr_decay_step = lr_decay_step
+        if lr_scheduler is not None and \
+           lr_scheduler not in ["time-based","exponential","step"]:
+            m = "Unknown learning rate scheduling method: {}".format(lr_scheduler)
+            logger_error(m)
+            raise ValueError(m)
+
+    def __call__(self,
+                 learning_rate0: float,
+                 epoch: int,
+    ) -> float:
+        """Update the learning rate.
+        
+        Args:
+            learning_rate0 (float): Initial learning rate.
+            epoch (int): Current epoch (iteration).
+            
+        Returns:
+            float: Updated learning rate.
+        """
+        if self.lr_scheduler is None:
+            return learning_rate0
+        elif self.lr_scheduler == "time-based":
+            return self._update_lr_time_based(learning_rate0, epoch, self.lr_decay_rate)
+        elif self.lr_scheduler == "exponential":
+            return self._update_lr_exponential(learning_rate0, epoch, self.lr_decay_rate)
+        elif self.lr_scheduler == "step":
+            return self._update_lr_step(learning_rate0, epoch, self.lr_decay_rate, self.lr_decay_step)
+        else:
+            m = "Unknown learning rate scheduling method: {}".format(self.lr_scheduler)
+            logger_error(m)
+            raise ValueError(m)
+
     def _update_lr_time_based(self,
                               learning_rate0: float,
                               epoch: int,
@@ -379,7 +438,7 @@ class Optimizer():
                         learning_rate0: float,
                         epoch: int,
                         decay_rate: float,
-                        decay_steps: int,
+                        decay_step: int,
     ) -> float:
         """Update the learning rate using the step decay method.
 
@@ -392,12 +451,12 @@ class Optimizer():
         Returns:
             float: Updated learning rate.
         """
-        learning_rate = learning_rate0/(1+decay_rate*np.floor(epoch/decay_steps))
+        learning_rate = learning_rate0/(1+decay_rate*np.floor(epoch/decay_step))
         return learning_rate
 
 
 class MemoizeJac:
-    """ Decorator that caches the return values of a function returning `(fun, grad)`
+    """Decorator that caches the return values of a function returning `(fun, grad)`
         each time it is called. """
 
     def __init__(self, fun):
@@ -427,7 +486,7 @@ class MemoizeJac:
             self._value = fg[0]
 
     def __call__(self, x, *args):
-        """ returns the the function value """
+        """Returns the the function value."""
         self._compute_if_needed(x, *args)
         return self._value
 
