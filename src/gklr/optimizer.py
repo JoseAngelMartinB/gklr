@@ -9,6 +9,249 @@ from scipy.optimize import OptimizeResult
 from .kernel_utils import *
 from .logger import *
 
+
+class LearningRateScheduler:
+    """Implements different learning rate scheduling methods."""
+
+    def __init__(self, 
+                 lr_scheduler: Optional[str] = None,
+                 lr_decay_rate: float = 1,
+                 lr_decay_step: int = 100,
+    ) -> None:
+        """Initialize the learning rate scheduler.
+
+        Args:
+            lr_scheduler: The method for the learning rate decay. Default: None.
+            lr_decay_rate: The learning rate decay rate. Default: 1.
+            lr_decay_step: The learning rate decay step for the step decay method.
+            Default: 100.
+        """
+        self.lr_scheduler = lr_scheduler
+        self.lr_decay_rate = lr_decay_rate
+        self.lr_decay_step = lr_decay_step
+        if lr_scheduler is not None and \
+           lr_scheduler not in ["time-based","exponential","step"]:
+            m = "Unknown learning rate scheduling method: {}".format(lr_scheduler)
+            logger_error(m)
+            raise ValueError(m)
+
+    def __call__(self,
+                 learning_rate0: float,
+                 epoch: int,
+    ) -> float:
+        """Update the learning rate.
+        
+        Args:
+            learning_rate0: Initial learning rate.
+            epoch: Current epoch (iteration).
+            
+        Returns:
+            Updated learning rate.
+        """
+        if self.lr_scheduler is None:
+            return learning_rate0
+        elif self.lr_scheduler == "time-based":
+            return self._update_lr_time_based(learning_rate0, epoch, self.lr_decay_rate)
+        elif self.lr_scheduler == "exponential":
+            return self._update_lr_exponential(learning_rate0, epoch, self.lr_decay_rate)
+        elif self.lr_scheduler == "step":
+            return self._update_lr_step(learning_rate0, epoch, self.lr_decay_rate, self.lr_decay_step)
+        else:
+            m = "Unknown learning rate scheduling method: {}".format(self.lr_scheduler)
+            logger_error(m)
+            raise ValueError(m)
+
+    def _update_lr_time_based(self,
+                              learning_rate0: float,
+                              epoch: int,
+                              decay_rate: float,
+    ) -> float:
+        """Update the learning rate using the time-based decay method.
+
+        Args:
+            learning_rate0: Initial learning rate.
+            epoch: Current epoch (iteration).
+            decay_rate: Decay rate.
+
+        Returns:
+            Updated learning rate.
+        """
+        learning_rate = learning_rate0/(1+decay_rate*epoch)
+        return learning_rate
+
+    def _update_lr_exponential(self,
+                               learning_rate0: float,
+                               epoch: int,
+                               decay_rate: float,
+    ) -> float:
+        """Update the learning rate using the exponential decay method.
+
+        Args:
+            learning_rate0: Initial learning rate.
+            epoch: Current epoch (iteration).
+            decay_rate: Decay rate.
+
+        Returns:
+            Updated learning rate.
+        """
+        learning_rate = learning_rate0*np.exp(-decay_rate*epoch)
+        return learning_rate
+
+    def _update_lr_step(self,
+                        learning_rate0: float,
+                        epoch: int,
+                        decay_rate: float,
+                        decay_step: int,
+    ) -> float:
+        """Update the learning rate using the step decay method.
+
+        Args:
+            learning_rate0: Initial learning rate.
+            epoch: Current epoch (iteration).
+            decay_rate: Decay rate.
+            decay_steps: Decay steps.
+
+        Returns:
+            Updated learning rate.
+        """
+        learning_rate = learning_rate0/(1+decay_rate*np.floor(epoch/decay_step))
+        return learning_rate
+
+
+class AcceleratedLinearSearch:
+    """Class for the accelerated linear search algorithm."""
+
+    def __init__(self,
+                 gamma: float = 1.1,
+                 theta: float = 0.5,
+                 max_alpha: float = 1.5,
+                 n_steps: int = 10,
+    ) -> None:
+        """Initialize the accelerated linear search algorithm.
+
+        Args:
+            gamma: The gamma parameter. Default: 1.1.
+            theta: The theta parameter. Default: 0.5.
+            max_alpha: The maximum alpha value. Default: 1.5.
+            n_steps: Number of steps in the main algorithm to perform one step
+                of the accelerated linear search. Default: 10.
+        """
+        self.gamma = gamma
+        self.theta = theta
+        self.max_alpha = max_alpha
+        self.alpha_t = 0
+        self.n_steps = n_steps
+        self.step = 0 # Current step
+        self.w_t = None # Value of the parameters at the previous iteration
+
+    def initialize(self,
+                   y_t: np.ndarray,
+    ) -> None:
+        """Initialize the accelerated linear search algorithm.
+        
+        Parameters:
+            y_t: The value of the parameters at the current iteration.
+        """
+        self.alpha_t = self.max_alpha/self.gamma # Initialize the alpha value
+        self.step = 0
+        self.w_t = y_t # Value of the parameters at the previous iteration
+
+    def update_params(self,
+                      fun: Callable,
+                      y_t: np.ndarray,
+                      *args,
+    ) -> np.ndarray:
+        """Execute the accelerated linear search algorithm and update the parameters.
+
+        Args:
+            fun: The objective function to be minimized.
+                ``fun(x, *args) -> float``,
+                where ``x`` is the input vector and ``args`` are the additional
+                arguments of the objective function.
+            y_t: The value of the parameters at the current iteration.
+            *args: Additional arguments of the objective function.
+
+        Returns:
+            The new value of the weights.
+        """
+        if self.w_t is None:
+            # The accelerated linear search algorithm has not been initialized
+            self.initialize(y_t)
+            m = ("The accelerated linear search algorithm has not been "
+                 "previously initialized. The algorithm has been initialized "
+                 "with the current value of the parameters.")
+            logger_warning(m)
+            return y_t
+
+        self.step += 1
+        if self.step == self.n_steps:
+            # Execute the accelerated linear search algorithm
+            self.step = 0
+            
+            # Compute a search direction
+            d_t = y_t - self.w_t
+            s_t = self.alpha_t*d_t
+
+            # Compute the function estimates
+            F0_t = fun(self.w_t, *args)
+            Fs_t = fun(self.w_t + s_t, *args)
+
+            if Fs_t <= (F0_t + self.alpha_t*self.theta*np.linalg.norm(d_t, ord=2)):
+                self.w_t = self.w_t + s_t
+                self.alpha_t = min(self.max_alpha, self.gamma*self.alpha_t)
+            else:
+                self.alpha_t = max(1, self.alpha_t/self.gamma)
+                if Fs_t <= F0_t:
+                    self.w_t = self.w_t + s_t
+                else:
+                    self.w_t = y_t
+
+            return self.w_t
+        else:
+            # The accelerated linear search algorithm is not executed
+            return y_t
+
+
+class MemoizeJac:
+    """Decorator that caches the return values of a function returning `(fun, grad)`
+        each time it is called. """
+
+    def __init__(self, fun):
+        self.fun = fun
+        self.jac = None
+        self._value = None
+        self.x = None
+        self.minibatch = None
+
+    def _compute_if_needed(self, x, minibatch = None,  *args):
+        # Check if the function value has already been computed for the given x
+        if not np.all(x == self.x) or self._value is None or self.jac is None:
+            self.x = np.asarray(x).copy()
+            if minibatch is not None:
+                self.minibatch = np.asarray(minibatch).copy()
+            else:
+                self.minibatch = None
+            fg = self.fun(x, minibatch, *args)
+            self.jac = fg[1]
+            self._value = fg[0]
+        
+        # Check if the mini-batches are the same as previous ones
+        if not np.all(minibatch == self.minibatch):
+            self.minibatch = np.asarray(minibatch).copy()
+            fg = self.fun(x, minibatch, *args)
+            self.jac = fg[1]
+            self._value = fg[0]
+
+    def __call__(self, x, *args):
+        """Returns the the function value."""
+        self._compute_if_needed(x, *args)
+        return self._value
+
+    def derivative(self, x, *args):
+        self._compute_if_needed(x, *args)
+        return self.jac
+
+
 class Optimizer():
     """Optimizer class object."""
 
@@ -84,6 +327,7 @@ class Optimizer():
                 logger_error(msg)
                 raise ValueError(msg)
         elif "lr_scheduler" in options:
+            # Load the user-defined parameters
             lr_scheduler = options["lr_scheduler"]
             options.pop("lr_scheduler")
             decay_opts = {}
@@ -95,6 +339,26 @@ class Optimizer():
                 options.pop("lr_decay_step")
             learning_rate_scheduler = LearningRateScheduler(lr_scheduler, **decay_opts)
             options["learning_rate_scheduler"] = learning_rate_scheduler
+
+        # Set parameters for the AcceleratedLinearSearch
+        if "accelerated_linear_search" in options:
+            if options["accelerated_linear_search"] is True:
+                # Load the user-defined parameters
+                als_options = {}
+                if "als_gamma" in options:
+                    als_options["gamma"] = options["als_gamma"]
+                    options.pop("als_gamma")
+                if "als_theta" in options:
+                    als_options["theta"] = options["als_theta"]
+                    options.pop("als_theta")
+                if "als_max_alpha" in options:
+                    als_options["max_alpha"] = options["als_max_alpha"]
+                    options.pop("als_max_alpha")
+                if "als_n_steps" in options:
+                    als_options["n_steps"] = options["als_n_steps"]
+                    options.pop("als_n_steps")
+                accelerated_linear_search = AcceleratedLinearSearch(**als_options)
+                options["accelerated_linear_search"] = accelerated_linear_search
 
         if method == "SGD":
             # Use the mini-batch stochastic gradient descent method
@@ -110,7 +374,6 @@ class Optimizer():
                    f"Valid methods are: {CUSTOM_OPTIMIZATION_METHODS}.")
             logger_error(msg)
             raise ValueError(msg)
-
         return res
 
     def minimize_mini_batch_sgd(self,
@@ -127,6 +390,7 @@ class Optimizer():
                                 beta2: float = 0.999,
                                 epsilon: float = 1e-08,
                                 learning_rate_scheduler: Optional[Callable] = None,
+                                accelerated_linear_search: Optional[AcceleratedLinearSearch] = None,
                                 maxiter: int = 1000, # Number of epochs
                                 print_every: int = 0,
                                 seed: int = 0,
@@ -151,12 +415,15 @@ class Optimizer():
             beta: The momentum parameter. Default: 0.9.
             beta1: The exponential decay rate for the first moment estimates
                 (gradients) in the Adam method. Default: 0.9.
-            beta2: The exponential decay rate for the second moment estimates 
+            beta2: The exponential decay rate for the second moment estimates
                 (squared gradients) in the Adam method. Default: 0.999.
             epsilon: A small constant for numerical stability in the Adam method.
                 Default: 1e-08.
             learning_rate_scheduler: A function that computes the learning rate
                 at each iteration. Default: None.
+            accelerated_linear_search: An instance of the AcceleratedLinearSearch
+                class. If None, the accelerated linear search is not used.
+                Default: None.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
             print_every: The number of iterations to print the loss. Default: 0. 
             seed: The seed for the random number generator. Default: 0.
@@ -222,6 +489,9 @@ class Optimizer():
             # Initialize velocity (v) and the square of the gradient (s)
             v = np.zeros((n,), np.float64)
             s = np.zeros((n,), np.float64)
+        if accelerated_linear_search is not None:
+            # Initialize the accelerated linear search
+            accelerated_linear_search.initialize(x0)
         history = {
             "loss": [],
         }
@@ -264,6 +534,10 @@ class Optimizer():
                     logger_error(m)
                     raise ValueError(m)
 
+                # Linear search acceleration
+                if accelerated_linear_search is not None:
+                    x = accelerated_linear_search.update_params(fun, x, *args)
+
             # Update the learning rate
             if learning_rate_scheduler is not None:
                 learning_rate = learning_rate_scheduler(learning_rate0, epoch)
@@ -279,7 +553,7 @@ class Optimizer():
             message = 'STOP: TOTAL NO. of ITERATIONS REACHED LIMIT'
             success = True
 
-        return OptimizeResult(x=x, fun=fun(x), jac=g, nit=epoch, nfev=epoch, 
+        return OptimizeResult(x=x, fun=fun(x,*args), jac=g, nit=epoch, nfev=epoch, 
             success=success, message=message, history=history)
 
     def _update_parameters_SGD(self,
@@ -345,151 +619,3 @@ class Optimizer():
             mini_batch.sort()
             mini_batches.append(mini_batch)
         return mini_batches
-
-
-class LearningRateScheduler:
-    """Implements different learning rate scheduling methods."""
-
-    def __init__(self, 
-                 lr_scheduler: Optional[str] = None,
-                 lr_decay_rate: float = 1,
-                 lr_decay_step: int = 100,
-    ) -> None:
-        """Initialize the learning rate scheduler.
-
-        Args:
-            lr_scheduler: The method for the learning rate decay. Default: None.
-            lr_decay_rate: The learning rate decay rate. Default: 1.
-            lr_decay_step: The learning rate decay step for the step decay method.
-            Default: 100.
-        """
-        self.lr_scheduler = lr_scheduler
-        self.lr_decay_rate = lr_decay_rate
-        self.lr_decay_step = lr_decay_step
-        if lr_scheduler is not None and \
-           lr_scheduler not in ["time-based","exponential","step"]:
-            m = "Unknown learning rate scheduling method: {}".format(lr_scheduler)
-            logger_error(m)
-            raise ValueError(m)
-
-    def __call__(self,
-                 learning_rate0: float,
-                 epoch: int,
-    ) -> float:
-        """Update the learning rate.
-        
-        Args:
-            learning_rate0 (float): Initial learning rate.
-            epoch (int): Current epoch (iteration).
-            
-        Returns:
-            float: Updated learning rate.
-        """
-        if self.lr_scheduler is None:
-            return learning_rate0
-        elif self.lr_scheduler == "time-based":
-            return self._update_lr_time_based(learning_rate0, epoch, self.lr_decay_rate)
-        elif self.lr_scheduler == "exponential":
-            return self._update_lr_exponential(learning_rate0, epoch, self.lr_decay_rate)
-        elif self.lr_scheduler == "step":
-            return self._update_lr_step(learning_rate0, epoch, self.lr_decay_rate, self.lr_decay_step)
-        else:
-            m = "Unknown learning rate scheduling method: {}".format(self.lr_scheduler)
-            logger_error(m)
-            raise ValueError(m)
-
-    def _update_lr_time_based(self,
-                              learning_rate0: float,
-                              epoch: int,
-                              decay_rate: float,
-    ) -> float:
-        """Update the learning rate using the time-based decay method.
-
-        Args:
-            learning_rate0 (float): Initial learning rate.
-            epoch (int): Current epoch (iteration).
-            decay_rate (float): Decay rate.
-
-        Returns:
-            float: Updated learning rate.
-        """
-        learning_rate = learning_rate0/(1+decay_rate*epoch)
-        return learning_rate
-
-    def _update_lr_exponential(self,
-                               learning_rate0: float,
-                               epoch: int,
-                               decay_rate: float,
-    ) -> float:
-        """Update the learning rate using the exponential decay method.
-
-        Args:
-            learning_rate0 (float): Initial learning rate.
-            epoch (int): Current epoch (iteration).
-            decay_rate (float): Decay rate.
-
-        Returns:
-            float: Updated learning rate.
-        """
-        learning_rate = learning_rate0*np.exp(-decay_rate*epoch)
-        return learning_rate
-
-    def _update_lr_step(self,
-                        learning_rate0: float,
-                        epoch: int,
-                        decay_rate: float,
-                        decay_step: int,
-    ) -> float:
-        """Update the learning rate using the step decay method.
-
-        Args:
-            learning_rate0 (float): Initial learning rate.
-            epoch (int): Current epoch (iteration).
-            decay_rate (float): Decay rate.
-            decay_steps (int): Decay steps.
-
-        Returns:
-            float: Updated learning rate.
-        """
-        learning_rate = learning_rate0/(1+decay_rate*np.floor(epoch/decay_step))
-        return learning_rate
-
-
-class MemoizeJac:
-    """Decorator that caches the return values of a function returning `(fun, grad)`
-        each time it is called. """
-
-    def __init__(self, fun):
-        self.fun = fun
-        self.jac = None
-        self._value = None
-        self.x = None
-        self.minibatch = None
-
-    def _compute_if_needed(self, x, minibatch = None,  *args):
-        # Check if the function value has already been computed for the given x
-        if not np.all(x == self.x) or self._value is None or self.jac is None:
-            self.x = np.asarray(x).copy()
-            if minibatch is not None:
-                self.minibatch = np.asarray(minibatch).copy()
-            else:
-                self.minibatch = None
-            fg = self.fun(x, minibatch, *args)
-            self.jac = fg[1]
-            self._value = fg[0]
-        
-        # Check if the mini-batches are the same as previous ones
-        if not np.all(minibatch == self.minibatch):
-            self.minibatch = np.asarray(minibatch).copy()
-            fg = self.fun(x, minibatch, *args)
-            self.jac = fg[1]
-            self._value = fg[0]
-
-    def __call__(self, x, *args):
-        """Returns the the function value."""
-        self._compute_if_needed(x, *args)
-        return self._value
-
-    def derivative(self, x, *args):
-        self._compute_if_needed(x, *args)
-        return self.jac
