@@ -125,7 +125,7 @@ class AcceleratedLinearSearch:
                  gamma: float = 1.1,
                  theta: float = 0.5,
                  max_alpha: float = 1.5,
-                 n_steps: int = 10,
+                 n_epochs: int = 10,
     ) -> None:
         """Initialize the accelerated linear search algorithm.
 
@@ -133,15 +133,15 @@ class AcceleratedLinearSearch:
             gamma: The gamma parameter. Default: 1.1.
             theta: The theta parameter. Default: 0.5.
             max_alpha: The maximum alpha value. Default: 1.5.
-            n_steps: Number of steps in the main algorithm to perform one step
+            n_epochs: Number of epochs in the main algorithm to perform one step
                 of the accelerated linear search. Default: 10.
         """
         self.gamma = gamma
         self.theta = theta
         self.max_alpha = max_alpha
         self.alpha_t = 0
-        self.n_steps = n_steps
-        self.step = 0 # Current step
+        self.n_epochs = n_epochs
+        self.epoch = 0 # Current epoch
         self.w_t = None # Value of the parameters at the previous iteration
 
     def initialize(self,
@@ -153,7 +153,7 @@ class AcceleratedLinearSearch:
             y_t: The value of the parameters at the current iteration.
         """
         self.alpha_t = self.max_alpha/self.gamma # Initialize the alpha value
-        self.step = 0
+        self.epoch = 0
         self.w_t = y_t # Value of the parameters at the previous iteration
 
     def update_params(self,
@@ -183,10 +183,10 @@ class AcceleratedLinearSearch:
             logger_warning(m)
             return y_t
 
-        self.step += 1
-        if self.step == self.n_steps:
+        self.epoch += 1
+        if self.epoch == self.n_epochs:
             # Execute the accelerated linear search algorithm
-            self.step = 0
+            self.epoch = 0
             
             # Compute a search direction
             d_t = y_t - self.w_t
@@ -354,11 +354,13 @@ class Optimizer():
                 if "als_max_alpha" in options:
                     als_options["max_alpha"] = options["als_max_alpha"]
                     options.pop("als_max_alpha")
-                if "als_n_steps" in options:
-                    als_options["n_steps"] = options["als_n_steps"]
-                    options.pop("als_n_steps")
+                if "als_n_epochs" in options:
+                    als_options["n_epochs"] = options["als_n_epochs"]
+                    options.pop("als_n_epochs")
                 accelerated_linear_search = AcceleratedLinearSearch(**als_options)
                 options["accelerated_linear_search"] = accelerated_linear_search
+            else:
+                options["accelerated_linear_search"] = None
 
         if method == "SGD":
             # Use the mini-batch stochastic gradient descent method
@@ -534,9 +536,9 @@ class Optimizer():
                     logger_error(m)
                     raise ValueError(m)
 
-                # Linear search acceleration
-                if accelerated_linear_search is not None:
-                    x = accelerated_linear_search.update_params(fun, x, *args)
+            # Linear search acceleration
+            if accelerated_linear_search is not None:
+                x = accelerated_linear_search.update_params(fun, x, *args)
 
             # Update the learning rate
             if learning_rate_scheduler is not None:
