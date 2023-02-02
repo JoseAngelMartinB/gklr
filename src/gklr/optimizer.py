@@ -309,8 +309,8 @@ class AcceleratedLinearSearch:
             
             # Update the parameters
             self.alpha_t = mu_t
-            #self.w_t = self.w_t + self.alpha_t*d_t
-            #return self.w_t
+            #self.w_t = self.w_t + self.alpha_t*d_t # TODO: Old version, to be removed
+            #return self.w_t # TODO: Old version, to be removed
             
             next_w_t = self.w_t + self.alpha_t*d_t
             self.w_t = y_t
