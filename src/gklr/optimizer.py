@@ -118,8 +118,8 @@ class LearningRateScheduler:
         return learning_rate
 
 
-class AcceleratedLinearSearch:
-    """Class for the accelerated linear search algorithm."""
+class AcceleratedLinearSearchPreviousVersion:
+    """Class for the accelerated linear search algorithm (Previous version)."""
 
     def __init__(self,
                  gamma: float = 1.1,
@@ -207,6 +207,114 @@ class AcceleratedLinearSearch:
                     self.w_t = y_t
 
             return self.w_t
+        else:
+            # The accelerated linear search algorithm is not executed
+            return y_t
+
+
+class AcceleratedLinearSearch:
+    """Class for the accelerated linear search algorithm."""
+
+    def __init__(self,
+                 gamma: float = 1.1,
+                 theta: float = 0.5,
+                 max_alpha: float = 1.5,
+                 n_epochs: int = 10,
+    ) -> None:
+        """Initialize the accelerated linear search algorithm.
+
+        Args:
+            gamma: The gamma parameter. Default: 1.1.
+            theta: The theta parameter. Default: 0.5.
+            max_alpha: The maximum alpha value. Default: 1.5.
+            n_epochs: Number of epochs in the main algorithm to perform one step
+                of the accelerated linear search. Default: 10.
+        """
+        self.gamma = gamma
+        self.theta = theta
+        self.max_alpha = max_alpha
+        self.alpha_t = 0
+        self.n_epochs = n_epochs
+        self.epoch = 0 # Current epoch
+        self.w_t = None # Value of the parameters at the previous iteration
+
+    def initialize(self,
+                   y_t: np.ndarray,
+    ) -> None:
+        """Initialize the accelerated linear search algorithm.
+        
+        Parameters:
+            y_t: The value of the parameters at the current iteration.
+        """
+        self.alpha_t = self.max_alpha/self.gamma # Initialize the alpha value
+        self.epoch = 0
+        self.w_t = y_t # Value of the parameters at the previous iteration
+
+    def update_params(self,
+                      fun: Callable,
+                      y_t: np.ndarray,
+                      *args,
+    ) -> np.ndarray:
+        """Execute the accelerated linear search algorithm and update the parameters.
+
+        Args:
+            fun: The objective function to be minimized.
+                ``fun(x, *args) -> float``,
+                where ``x`` is the input vector and ``args`` are the additional
+                arguments of the objective function.
+            y_t: The value of the parameters at the current iteration.
+            *args: Additional arguments of the objective function.
+
+        Returns:
+            The new value of the weights.
+        """
+        if self.w_t is None:
+            # The accelerated linear search algorithm has not been initialized
+            self.initialize(y_t)
+            m = ("The accelerated linear search algorithm has not been "
+                 "previously initialized. The algorithm has been initialized "
+                 "with the current value of the parameters.")
+            logger_warning(m)
+            return y_t
+
+        self.epoch += 1
+        if self.epoch == self.n_epochs:
+            # Execute the accelerated linear search algorithm
+            self.epoch = 0
+            
+            # Compute a search direction
+            d_t = y_t - self.w_t
+
+            # Compute the function estimates
+            F0_t = fun(self.w_t, *args)
+
+            # Compute the step size
+            mu_t = self.alpha_t
+            delta = self.theta * np.linalg.norm(d_t, ord=2)
+            if F0_t - fun(self.w_t + mu_t*d_t, *args) >= mu_t*delta:
+                # Increase the step size while the Armijo condition is satisfied
+                armijo_satisfied = True
+                while armijo_satisfied and (self.gamma*mu_t <= self.max_alpha):
+                    mu_t = self.gamma*mu_t
+                    if F0_t - fun(self.w_t + mu_t*d_t, *args) < mu_t*delta:
+                        armijo_satisfied = False
+            else:
+                # Otherwise, decrease the step size until the Armijo condition 
+                # is satisfied
+                armijo_satisfied = False
+                while not armijo_satisfied and (1 <= mu_t/self.gamma):
+                    mu_t = mu_t/self.gamma
+                    if F0_t - fun(self.w_t + mu_t*d_t, *args) >= mu_t*delta:
+                        armijo_satisfied = True
+            
+            # Update the parameters
+            self.alpha_t = mu_t
+            #self.w_t = self.w_t + self.alpha_t*d_t
+            #return self.w_t
+            
+            next_w_t = self.w_t + self.alpha_t*d_t
+            self.w_t = y_t
+            return next_w_t
         else:
             # The accelerated linear search algorithm is not executed
             return y_t
