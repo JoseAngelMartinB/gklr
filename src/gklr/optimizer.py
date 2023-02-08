@@ -2,6 +2,7 @@
 from typing import Optional, Any, Dict, List, Union, Callable, Tuple
 
 import sys
+from time import perf_counter
 
 import numpy as np
 from scipy.optimize import OptimizeResult
@@ -535,7 +536,10 @@ class Optimizer():
                 class. If None, the accelerated linear search is not used.
                 Default: None.
             maxiter: The maximum number of iterations or epochs. Default: 1000.
-            print_every: The number of iterations to print the loss. Default: 0. 
+            print_every: The number of iterations to print the loss. If 0,
+                the loss is not computed. If -1, the loss is computed at each 
+                iteration but not printed. If -2, the loss and time per iteration
+                are computed but not printed. Default: 0. 
             seed: The seed for the random number generator. Default: 0.
             **kwards: Additional arguments passed to the objective function.
 
@@ -604,6 +608,7 @@ class Optimizer():
             accelerated_linear_search.initialize(x0)
         history = {
             "loss": [],
+            "time": [],
         }
         message = "Optimization terminated successfully."
         success = True
@@ -612,6 +617,11 @@ class Optimizer():
         x = x0
         epoch = 0
         for epoch in range(num_epochs):
+            epoch_init_time = 0
+            if print_every == -2:
+                # Store the time at the beginning of the epoch
+                epoch_init_time = perf_counter()
+            
             if mini_batch_size is None:
                 # Use the entire dataset as the mini-batch (batch gradient descent)
                 minibatches = [None]
@@ -625,7 +635,7 @@ class Optimizer():
 
             for minibatch in minibatches:
                 # Compute the loss of the mini-batch if it is required
-                if print_every > 0 and epoch % print_every == 0:
+                if print_every < 0 or (print_every > 0 and epoch%print_every == 0):
                     epoch_loss += fun(x, minibatch, *args)
 
                 # Compute the gradient
@@ -653,9 +663,14 @@ class Optimizer():
                 learning_rate = learning_rate_scheduler(learning_rate0, epoch)
 
             # Print the average loss of the mini-batches if it is required
-            if print_every > 0 and epoch % print_every == 0:
+            if print_every < 0 or (print_every > 0 and epoch%print_every == 0):
                 history["loss"].append(epoch_loss)
-                print(f"\t* Epoch: {epoch}/{num_epochs} - Avg. loss: {epoch_loss:.4f}")
+                if print_every == -2:
+                    # Store the time consumed by the epoch
+                    history["time"].append(perf_counter() - epoch_init_time)
+                if print_every > 0:
+                    # Print the loss at the current epoch
+                    print(f"\t* Epoch: {epoch}/{num_epochs} - Avg. loss: {epoch_loss:.4f}")
                 sys.stdout.flush()
 
         epoch += 1

@@ -48,7 +48,8 @@ class Estimation(ABC):
         self.method = method
         self.verbose = verbose
         self.history = {
-            'loss': [],
+            'loss': [], # Loss function per iteration
+            'time': None, # Time per iteration (Not implemented yet for SCIPY_OPTIMIZATION_METHODS)
             }
         self.n_samples = calcs.K.get_num_samples()
 
@@ -104,6 +105,7 @@ class Estimation(ABC):
             res = optimizer.minimize(self.objective_function, params, method=self.method, jac=jac, tol=loss_tol, options=options)
             # Override default history values because possible minibatches store only the disaggretated loss
             self.history['loss'] = res["history"]["loss"]
+            self.history['time'] = res["history"]["time"]
         else:
             msg = f"Error: The optimization method '{self.method}' is not valid."
             logger_error(msg)
