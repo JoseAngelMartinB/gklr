@@ -48,12 +48,21 @@ class Estimation(ABC):
         self.method = method
         self.verbose = verbose
         self.history = {
-            'loss': [],
-            'gradient': []
+            'loss': [], # Loss function per iteration
+            'time': None, # Time per iteration (Not implemented yet for SCIPY_OPTIMIZATION_METHODS)
             }
+        self.n_samples = calcs.K.get_num_samples()
 
     @abstractmethod
     def objective_function(self):
+        return
+
+    @abstractmethod
+    def gradient(self):
+        return
+
+    @abstractmethod
+    def objective_function_with_gradient(self):
         return
 
     def minimize(self,
@@ -72,7 +81,6 @@ class Estimation(ABC):
         Returns:
             A dict with the results of the optimization.
         """
-
         # Default parameters for the optimization method
         gradient_tol = 1e-06
         maxiter = 1000
@@ -83,14 +91,21 @@ class Estimation(ABC):
         options.setdefault('gtol', gradient_tol)
         options.setdefault('maxiter', maxiter)
         options.setdefault('maxls', 30)
+        if self.method == "SGD" or self.method == "momentumSGD" or self.method == "adam":
+            options.setdefault('n_samples', self.n_samples)
 
         if self.method in SCIPY_OPTIMIZATION_METHODS:
             # Use the scipy.optimize.minimize function
-            res = minimize(self.objective_function, params, method=self.method, jac=True, tol=loss_tol, options=options)
+            jac = self.gradient
+            res = minimize(self.objective_function, params, method=self.method, jac=jac, tol=loss_tol, options=options)
         elif self.method in CUSTOM_OPTIMIZATION_METHODS:
             # Use the custom optimization function
             optimizer = Optimizer()
-            res = optimizer.minimize(self.objective_function, params, method=self.method, jac=True, tol=loss_tol, options=options)
+            jac = self.gradient
+            res = optimizer.minimize(self.objective_function, params, method=self.method, jac=jac, tol=loss_tol, options=options)
+            # Override default history values because possible minibatches store only the disaggretated loss
+            self.history['loss'] = res["history"]["loss"]
+            self.history['time'] = res["history"]["time"]
         else:
             msg = f"Error: The optimization method '{self.method}' is not valid."
             logger_error(msg)
