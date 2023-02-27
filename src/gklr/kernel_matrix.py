@@ -29,13 +29,14 @@ class KernelMatrix():
         """Constructor.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
             config: A Config object that contains the hyperparameters of the GKLR model.
-            Z: Test dataset stored in a pandas DataFrame. Default: None
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
+                Default: None
         """
         # TODO: Check arguments
         # Create a new kernel based on the kernel type selected
@@ -54,6 +55,7 @@ class KernelMatrix():
         self.choices = None
         self.choices_indices = None
         self.choices_matrix = None
+        self.n_samples = 0
 
         # Create the kernel matrix K
         self._init_kernel_matrix(X, choice_column, attributes, Z)
@@ -66,13 +68,24 @@ class KernelMatrix():
     ) -> None:
         """Construct and store the kernel matrix K.
 
+        The kernel matrix K is constructed using the training dataset `X` and the
+        test dataset `Z`. The kernel matrix is stored in the attribute `self._K`.
+        The kernel matrix dimensions are (n_rows, n_cols), where n_rows is the
+        number of rows of the training dataset `X` and n_cols is the number of
+        rows of the test dataset `Z`. If `Z` is not provided, then `X` is used
+        as the test dataset and n_cols = n_rows.
+        If Nyström is used, the dimension of the kernel matrix is reduced to
+        (n_rows, nystrom_components), where nystrom_components is the number of
+        components (or landmarks) used for the Nyström approximation.
+
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
-            Z: Test dataset stored in a pandas DataFrame. Default: None
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
+                Default: None
         """
         # TODO: Check that attributes contains more than 1 alternative
         # TODO: Check that none alternative from attributes contains no attributes at all (giving a 0x0 matrix)
@@ -95,6 +108,9 @@ class KernelMatrix():
             self.nystrom = False
 
         # TODO: Implement n_jobs (parallelization)
+
+        # Store the number of samples in dataset X
+        self.n_samples = X.shape[0]
 
         # Store the alternatives (classes) available
         self.alternatives = list(np.fromiter(attributes.keys(), dtype=int))
@@ -175,11 +191,19 @@ class KernelMatrix():
         """
         return self.n_rows
 
+    def get_num_samples(self) -> int:
+        """Return the number of observations in the dataset.
+        
+        Returns:
+            Number of observations in the dataset.
+        """
+        return self.n_samples
+
     def get_alternatives(self) -> np.ndarray:
         """Return the available alternatives.
 
         Returns:
-            A numpy array with the available alternatives.
+            A numpy array with the available alternatives. Shape: (n_alternatives,).
         """
         return np.array(self.alternatives)
 
@@ -194,7 +218,7 @@ class KernelMatrix():
         """Return the choices per observation.
 
         Returns:
-            A numpy array with the choices per observation.
+            A numpy array with the choices per observation. Shape: (n_samples,).
         """
         if self.choices is None:
             msg = "Kernel matrix not initialized."
@@ -207,6 +231,7 @@ class KernelMatrix():
 
         Returns:
             A numpy array with the choices per observation as alternative indices.
+            Shape: (n_samples,).
         """
         if self.choices is None:
             msg = "Kernel matrix not initialized."
@@ -227,6 +252,7 @@ class KernelMatrix():
 
         Returns:
             A numpy array with the choices per observation as a matrix.
+                Shape: (n_samples, n_alternatives).
         """
         if self.choices_matrix is None:
             Z = np.zeros((self.get_num_rows(), self.get_num_alternatives()))
@@ -275,24 +301,60 @@ class KernelMatrix():
             logger_error(msg)
             raise ValueError(msg)
 
-    def dot(self, A: np.ndarray, index: int = 0) -> np.ndarray:
+    def dot(self, 
+            A: np.ndarray,
+            K_index: int = 0,
+            row_indices: Optional[np.ndarray] = None,
+            col_indices: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
         """Implements the dot product of the kernel matrix and numpy array A.
 
         Implements the matrix multiplication K ∙ A, where K is the kernel matrix 
         and A is a numpy array given as argument.
 
         Args:
-            A: Numpy array to be multiplied by the kernel matrix.
-            index: Index of the kernel matrix to be used.
+            A: Numpy array to be multiplied by the kernel matrix. 
+                Shape: (num_cols_kernel_matrix, •)
+            K_index: Index of the kernel matrix to be used.
+            row_indices: Indices of the rows of the kernel matrix to be used in
+                the dot product. If None, all the rows are used. Default: None.
+            col_indices: Indices of the columns of the kernel matrix to be used
+                in the dot product. If None, all the columns are used. Default: None.
 
         Returns:
             The dot product of the kernel matrix and `A`.
+                Shape: (num_rows_kernel_matrix, •)
         """
-        K = self.get_K(index=index)
+        K = self.get_K(index=K_index)
         assert isinstance(K, np.ndarray)
         if self.nystrom:
-            B = K.dot(K.T.dot(A))
+            # Compute the dot product using the Nyström approximation of the kernel matrix.
+            if row_indices is not None:
+                # A subset of the rows in the kernel matrix is used.
+                row_indices = row_indices.tolist()
+                B = K[row_indices, :].dot(K.T.dot(A))
+            elif col_indices is not None:
+                # A subset of the columns in the kernel matrix is used.
+                n_cols = col_indices.shape[0]
+                col_indices = col_indices.tolist()
+                if A.shape[0] != n_cols:
+                    msg = (f"Error in K.dot(): "
+                            f"The number of columns in the kernel matrix ({n_cols}) "
+                            f"does not match the number of rows in the array A ({A.shape[0]}).")
+                    logger_error(msg)
+                    raise ValueError(msg)
+                B = K.dot(K.T[:, col_indices].dot(A))
+            else:
+                # Default case: All rows and columns are used.
+                B = K.dot(K.T.dot(A))
         else:
+            # Compute the dot product using the full kernel matrix.
+            if row_indices is not None:
+                row_indices = row_indices.tolist()
+                K = K[row_indices, :]
+            if col_indices is not None:
+                col_indices = col_indices.tolist()
+                K = K[:, col_indices]
             B = K.dot(A)
         return B
 
@@ -354,7 +416,7 @@ class Nystroem():
         """Fit the Nyström approximation to the data and obtain the Nyström approximation of the kernel matrix.
 
         Args:
-            X: Data to be used for fitting the Nyström approximation. array-like of shape (n_samples, n_features)
+            X: Data to be used for fitting the Nyström approximation. array-like of shape: (n_samples, n_features)
             y: Target values. Default = None.
             fit_params: Additional parameters to be passed to the kernel function.
 
@@ -373,7 +435,7 @@ class Nystroem():
         on these and computes normalization matrix.
 
         Args:
-            X: Data to be used for fitting the Nyström approximation. array-like of shape (n_samples, n_features)
+            X: Data to be used for fitting the Nyström approximation. array-like of shape: (n_samples, n_features)
             y: Target values. Default = None.
         """
         X = check_array(X, accept_sparse='csr')
@@ -433,10 +495,10 @@ class Nystroem():
         between some training points and X.
 
         Args:
-            X: Data to transform. array-like of shape (n_samples, n_features)
+            X: Data to transform. array-like of shape: (n_samples, n_features)
 
         Returns:
-            Transformed data. ndarray of shape (n_samples, n_components)
+            Transformed data. ndarray of shape: (n_samples, n_components)
         """
         X = check_array(X, accept_sparse='csr')
         kernel_params = self._get_kernel_params()

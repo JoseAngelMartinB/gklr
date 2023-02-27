@@ -22,13 +22,13 @@ class Calcs(ABC):
         return
 
     @abstractmethod
-    def log_likelihood(self, alpha, return_P):
+    def log_likelihood(self, alpha, P, choice_indices):
         """Calculate the log-likelihood of the model for the given parameters.
         """
         return
 
     @abstractmethod
-    def log_likelihood_and_gradient(self, alpha):
+    def gradient(self, alpha, P):
         """Calculate the log-likelihood of the model and its gradient for
         the given parameters.
         """
@@ -46,17 +46,19 @@ class Calcs(ABC):
 
         Args:
             f: The matrix of utility function values for each alternative for each
-                row of the dataset.
+                row of the dataset. Shape: (n_samples, num_alternatives).
 
         Returns:
             The auxiliary matrix `Y` that contains the exponentiated values of the
-                matrix `f`.
+                matrix `f`. Shape: (n_samples, num_alternatives).
         """
         return np.exp(f)
 
     @abstractmethod
     def calc_G(self, Y):
-        """Calculate the auxiliary matrix `G` and its derivative."""
+        """Calculate the generating function `G` of a Generalized Extreme Value
+            (GEV) model and its derivative.
+        """
         return
 
     def calc_P(self,
@@ -69,12 +71,14 @@ class Calcs(ABC):
 
         Args:
             Y: The auxiliary matrix `Y` that contains the exponentiated values of
-                the matrix `f`.
-            G: The auxiliary matrix `G`.
-            G_j: The derivative of the auxiliary matrix `G`.
+                the matrix `f`. Shape: (n_samples, num_alternatives).
+            G: The auxiliary matrix `G`. Shape: (n_samples, 1).
+            G_j: The derivative of the auxiliary matrix `G`. Shape: (n_samples, num_alternatives).
 
         Returns:
             The matrix of probabilities for each alternative for each row of the
-                dataset.
+                dataset. Each column corresponds to an alternative and each row
+                to a row of the dataset. The sum of the probabilities for each
+                row is 1. Shape: (n_samples, num_alternatives).
         """
         return (Y*G_j)/G

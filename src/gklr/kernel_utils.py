@@ -5,6 +5,8 @@ from sklearn.metrics import pairwise
 DEFAULT_DTYPE = np.float64
 VALID_PMLE_METHODS = [None, "Tikhonov"]
 DEFAULT_NYSTROM_COMPRESSION = 0.1
+SCIPY_OPTIMIZATION_METHODS = ["Nelder-Mead", "Powell", "CG", "BFGS", "Newton-CG", "L-BFGS-B", "TNC", "COBYLA", "SLSQP", "trust-constr", "dogleg", "trust-ncg", "trust-exact", "trust-krylov"]
+CUSTOM_OPTIMIZATION_METHODS = ["SGD", "momentumSGD", "adam"]
 
 # Create a dictionary relating the kernel type parameter to the class from sklearn.gaussian_process.kernels that
 # implements that kernel.

@@ -93,13 +93,14 @@ class KernelModel:
         Creates the KernelMatrix object and store it in a private variable.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features)
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
                 containing the names of all the columns considered for that alternative. 
             config: A Config object that contains the hyperparameters of the GKLR model.
-            Z: Test dataset stored in a pandas DataFrame. Default: None
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features).
+                Default: None
             train: A boolean that indicates if the kernel matrix to be created is for train or test data.
                 Default: True.
 
@@ -178,7 +179,7 @@ class KernelModel:
         stored using the KernelMatrix class.
 
         Args:
-            X: Train dataset stored in a pandas DataFrame.
+            X: Train dataset stored in a pandas DataFrame. Shape: (n_samples, n_features)
             choice_column: Name of the column of DataFrame `X` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `X` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
@@ -226,7 +227,7 @@ class KernelModel:
         stored using the KernelMatrix class.
 
         Args:
-            Z: Test dataset stored in a pandas DataFrame.
+            Z: Test dataset stored in a pandas DataFrame. Shape: (n_samples, n_features)
             choice_column: Name of the column of DataFrame `Z` that contains the ID of chosen alternative.
             attributes: A dict that contains the columns of DataFrame `Z` that are considered for each alternative.
                 This dict is indexed by the ID of the available alternatives in the dataset and the values are list
@@ -271,6 +272,7 @@ class KernelModel:
             pmle: str = "Tikhonov",
             pmle_lambda: float = 0,
             method: str = "L-BFGS-B",
+            options: Optional[Dict[str, Any]] = None,
             verbose: int = 1,
     ) -> None:
         """Fit the kernel model.
@@ -278,10 +280,12 @@ class KernelModel:
         Perform the estimation of the kernel model and store post-estimation results.
 
         Args:
-            init_parms: Initial value of the parameters to be optimized. Default: None
+            init_parms: Initial value of the parameters to be optimized.
+                Shape: (num_cols_kernel_matrix, n_features). Default: None
             pmle: Penalization method. Default: None.
             pmle_lambda: Parameter for the penalization method. Default: 0
             method: Optimization method. Default: "L-BFGS-B".
+            options: Options for the optimization method. Default: None.
             verbose: Indicates the level of verbosity of the function. If 0, no output will be printed. If 1, basic
                 information about the time spent and the Log-likelihood value will be displayed. Default: 1.
         """
@@ -303,10 +307,10 @@ class KernelModel:
 
         # Log-likelihood at zero
         alpha_at_0 = np.zeros(self.alpha_shape, dtype=DEFAULT_DTYPE)
-        log_likelihood_at_zero, _ = calcs.log_likelihood(alpha_at_0)
+        log_likelihood_at_zero = calcs.log_likelihood(alpha_at_0)
 
         # Initial log-likelihood
-        initial_log_likelihood, _ = calcs.log_likelihood(init_parms)
+        initial_log_likelihood = calcs.log_likelihood(init_parms)
 
         if verbose >= 1:
             print("The estimation is going to start...\n"
@@ -319,20 +323,22 @@ class KernelModel:
 
         # Perform the estimation
         start_time = time.time()
-        self.results = estimator.minimize(init_parms.reshape(self.n_parameters))
+        self.results = estimator.minimize(init_parms.reshape(self.n_parameters), options=options)
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 
-        final_log_likelihood, _ = calcs.log_likelihood(self.results["alpha"])
+        final_log_likelihood = calcs.log_likelihood(self.results["alpha"])
         mcfadden_r2 = 1 - final_log_likelihood / log_likelihood_at_zero  # TODO: Implement a method to compute metrics
 
         # Store post-estimation information
+        self.results["initial_log_likelihood"] = initial_log_likelihood
         self.results["final_log_likelihood"] = final_log_likelihood
         self.results["elapsed_time"] = elapsed_time_sec
         self.results["mcfadden_r2"] = mcfadden_r2
         self.results["pmle"] = pmle
         self.results["pmle_lamda"] = pmle_lambda
         self.results["method"] = method
+        self.results["history"] = estimator.history
 
         if verbose >= 1:
             print("-------------------------------------------------------------------------\n"
@@ -342,6 +348,39 @@ class KernelModel:
                                                   final_log_likelihood=final_log_likelihood,
                                                   r2 = mcfadden_r2))
             sys.stdout.flush()
+
+        return None
+
+    def summary(self) -> None:
+        """Print a summary of the estimation results."""
+        if self.results is None:
+            msg = "The model has not been estimated yet. Use fit() to estimate it."
+            logger_error(msg)
+            raise RuntimeError(msg)
+
+        print("-------------------------------------------------------------------------\n"
+              "GKLR Kernel Model summary\n"
+              "-------------------------------------------------------------------------\n"
+              "Optimization method: {method}\n"
+              "optimization success: {success}\n"
+              "Optimization message: {message}\n"
+              "Penalization: {pmle}\n"
+              "Penalization parameter: {pmle_lambda}\n"
+              "Initial log-likelihood: {initial_log_likelihood:,.4f}\n"
+              "Final log-likelihood: {final_log_likelihood:,.4f}\n"
+              "McFadden R^2: {r2:.4f}\n"
+              "Elapsed time: {elapsed_time}\n"
+              "-------------------------------------------------------------------------".format(
+            method=self.results["method"],
+            success=self.results["success"],
+            message=self.results["message"],
+            pmle=self.results["pmle"],
+            pmle_lambda=self.results["pmle_lamda"],
+            initial_log_likelihood=self.results["initial_log_likelihood"],
+            final_log_likelihood=self.results["final_log_likelihood"],
+            r2=self.results["mcfadden_r2"],
+            elapsed_time=elapsed_time_to_str(self.results["elapsed_time"])))
+        sys.stdout.flush()
 
         return None
 
