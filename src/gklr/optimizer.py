@@ -197,7 +197,7 @@ class AcceleratedLinearSearch:
 
             # Compute the step size
             mu_t = self.alpha_t
-            delta = self.theta * np.linalg.norm(d_t, ord=2)
+            delta = self.theta * np.square(np.linalg.norm(d_t, ord=2))
             if F0_t - fun(self.w_t + mu_t*d_t, *args) >= mu_t*delta:
                 # Increase the step size while the Armijo condition is satisfied
                 armijo_satisfied = True
