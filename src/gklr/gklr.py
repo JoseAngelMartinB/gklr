@@ -323,7 +323,12 @@ class KernelModel:
 
         # Perform the estimation
         start_time = time.time()
-        self.results = estimator.minimize(init_parms.reshape(self.n_parameters), options=options)
+        
+        # Remove the last column of init_parms
+        n_params_removed = init_parms.shape[0]
+        init_parms = init_parms[:, :-1]
+
+        self.results = estimator.minimize(init_parms.reshape(self.n_parameters - n_params_removed), options=options)
         elapsed_time_sec = time.time() - start_time
         elapsed_time_str = elapsed_time_to_str(elapsed_time_sec)
 

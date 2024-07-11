@@ -68,8 +68,13 @@ class KernelEstimator(Estimation):
             and the second element is the gradient of the objective function with 
             respect to the model parameters with shape: (num_rows_kernel_matrix * num_alternatives,)
         """
-        # Convert params to alfas and reshape them as a column vector
-        alpha = params.reshape(self.alpha_shape)
+        pre_shape = (self.alpha_shape[0], self.alpha_shape[1] - 1)
+        params = np.reshape(params, pre_shape)
+
+        # Add a column of zeros to the end of the params matrix
+        alpha = np.append(params, np.zeros((self.alpha_shape[0], 1)), axis=1)
+
+        ##print(alpha)
 
         if self.prev_params is None or not np.array_equal(params, self.prev_params) or \
             (indices is not None and self.prev_indices is None) or \
@@ -116,8 +121,12 @@ class KernelEstimator(Estimation):
             The gradient of the objective function with respect to the model
             parameters with shape: (num_rows_kernel_matrix * num_alternatives,).
         """
-        # Convert params to alfas and reshape them as a column vector
-        alpha = params.reshape(self.alpha_shape)
+        pre_shape = (self.alpha_shape[0], self.alpha_shape[1] - 1)
+        params = np.reshape(params, pre_shape)
+
+        # Add a column of zeros to the end of the params matrix
+        alpha = np.append(params, np.zeros((self.alpha_shape[0], 1)), axis=1)
+
 
         if self.prev_params is None or not np.array_equal(params, self.prev_params) or \
             (indices is not None and self.prev_indices is None) or \
@@ -135,6 +144,14 @@ class KernelEstimator(Estimation):
 
         # Compute the log-likelihood and gradient
         gradient = self.calcs.gradient(alpha, P=P, pmle=self.pmle, pmle_lambda=self.pmle_lambda, indices=indices)
+
+
+        gradient = np.reshape(gradient, self.alpha_shape)
+        # Remove the last column of the gradient
+        gradient = gradient[:, :-1]
+        # Reshape the gradient to a 1D array
+        gradient = gradient.flatten()
+
         return gradient
 
     def objective_function_with_gradient(self,
@@ -180,6 +197,11 @@ class KernelEstimator(Estimation):
             A dict with the results of the optimization.
         """
         results = super().minimize(params, loss_tol, options, **kargs)
-        # Convert params to alpha np vector and reshape them as a column vector
-        results["alpha"] = results["params"].reshape(self.alpha_shape)
+
+        pre_shape = (self.alpha_shape[0], self.alpha_shape[1] - 1)
+        params = np.reshape(results["params"], pre_shape)
+
+        # Add a column of zeros to the end of the params matrix
+        results["alpha"] = np.append(params, np.zeros((self.alpha_shape[0], 1)), axis=1)
+
         return results
