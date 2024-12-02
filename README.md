@@ -76,4 +76,4 @@ GKLR is distributed under the MIT License. See `LICENSE` for more information.
 
 If you found this repository useful, you can acknowledge the authors by citing:
 
-* José Ángel Martín-Baos, Ricardo García-Ródenas, Luis Rodriguez-Benitez, Michel Bierlaire (2025). Scalable kernel logistic regression with Nyström approximation: Theoretical analysis and application to discrete choice modelling. *Neurocomputing*, 128975. DOI: [10.1016/j.neucom.2024.128975](https://doi.org/10.1016/j.neucom.2024.128975)
+* José Ángel Martín-Baos, Ricardo García-Ródenas, Luis Rodriguez-Benitez, Michel Bierlaire (2025). Scalable kernel logistic regression with Nyström approximation: Theoretical analysis and application to discrete choice modelling. *Neurocomputing* 617, 128975. DOI: [10.1016/j.neucom.2024.128975](https://doi.org/10.1016/j.neucom.2024.128975)
