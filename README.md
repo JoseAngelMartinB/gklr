@@ -6,6 +6,8 @@
 ![Licence](https://img.shields.io/badge/Licence-MIT-blue)
 [![Built Status](https://api.cirrus-ci.com/github/JoseAngelMartinB/gklr.svg?branch=main)](https://cirrus-ci.com/github/JoseAngelMartinB/gklr)
 [![Coveralls](https://img.shields.io/coveralls/github/JoseAngelMartinB/gklr/main.svg)](https://coveralls.io/r/JoseAngelMartinB/gklr)
+[![arXiv](https://img.shields.io/badge/arXiv-2402.06763-b31b1b.svg)](https://arxiv.org/abs/2402.06763)
+
 
 <!-- PROJECT LOGO -->
 <br />
@@ -69,3 +71,9 @@ There are no known issues at this moment.
 GKLR is distributed under the MIT License. See `LICENSE` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Citation
+
+If you found this repository useful, you can acknowledge the authors by citing:
+
+* José Ángel Martín-Baos, Ricardo García-Ródenas, Luis Rodriguez-Benitez, Michel Bierlaire (2025). Scalable kernel logistic regression with Nyström approximation: Theoretical analysis and application to discrete choice modelling. *Neurocomputing* 617, 128975. DOI: [10.1016/j.neucom.2024.128975](https://doi.org/10.1016/j.neucom.2024.128975)
